@@ -1,8 +1,11 @@
-# SyNAPSE traffic generator
+# DPDK traffic generator
 
-## Info
+## Dependencies
 
-Pktgen uses **DPDK 22.11** to generate traffic.
+| Application | Version |
+| ----------- | ------- |
+| DPDK        | 22.11   |
+| meson       | 1.3.1   |
 
 ## Testing
 
