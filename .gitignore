@@ -1,0 +1,21 @@
+# IDE and OS specific folders
+.vscode
+.DS_Store
+
+# Python stuff
+env
+__pycache__
+
+# In case we mess up and dump cores
+core.*
+
+# To generate builds
+builds
+Debug
+Release
+
+# Dependencies
+deps
+
+# Paths file
+paths.sh
