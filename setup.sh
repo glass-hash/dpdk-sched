@@ -55,7 +55,7 @@ create_paths_file() {
 setup_env() {
   pushd "$SCRIPT_DIR"
     if [ ! -d $PYTHON_ENV_DIR ]; then
-      python3 -m venv env
+      python3 -m venv $PYTHON_ENV_DIR
     fi
 
     add_expr_to_paths_file ". $PYTHON_ENV_DIR/bin/activate"
