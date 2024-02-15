@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #include "clock.h"
+#include "log.h"
 #include "pktgen.h"
 
 #define CMDLINE_PARSE_INT_NTOKENS(NTOKENS)            \
@@ -80,13 +81,37 @@ void cmd_rate(rate_gbps_t rate) {
 }
 
 void cmd_churn(churn_fpm_t churn) {
+  if (churn > config.max_churn) {
+    WARNING("Invalid churn value (requested %" PRIu64
+            " is bigger then max %" PRIu64 " fpm). Ignoring request.",
+            churn, config.max_churn);
+    return;
+  }
+
   uint16_t num_base_flows = config.num_flows / 2;
-  config.runtime.churn = churn / 60;
 
-  // Getting the churn per flow.
-  config.runtime.flow_ttl =
-      (1e9 * (uint64_t)num_base_flows) / config.runtime.churn;
+  if (churn == 0) {
+    config.runtime.flow_ttl = 0;
+    signal_new_config();
+    return;
+  }
 
+  double churn_fps = (double)churn / 60;
+  assert(churn_fps != 0);
+
+  time_ns_t flow_ttl = (1e9 * (uint64_t)num_base_flows) / churn_fps;
+
+  if (flow_ttl < config.exp_time) {
+    WARNING("WARNING: Flow TTL (%" PRIu64
+            "ns) is smaller than the expiration time (%" PRIu64
+            "ns). Ignoring request.",
+            flow_ttl, config.exp_time);
+    return;
+  }
+
+  LOG_DEBUG("Flow TTL = %" PRIu64 "ns", flow_ttl);
+
+  config.runtime.flow_ttl = flow_ttl;
   signal_new_config();
 }
 

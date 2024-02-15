@@ -1,27 +1,39 @@
 cmake_minimum_required(VERSION 3.5)
 project(pktgen)
 
-# C++ STD version
-set(CMAKE_CXX_STANDARD 11)
+###############################################################################
+# Configuring C++ standard version
+###############################################################################
+
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# C STD version
+###############################################################################
+# Configuring C standard version
+###############################################################################
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED True)
 set(CMAKE_C_EXTENSIONS True)
 
-# Output targets
+###############################################################################
+# Setting some complation flags
+###############################################################################
+
+add_compile_options(-m64 -O3 -march=native -g -Wall -Wextra -Werror -Wfatal-errors)
+
+###############################################################################
+# Setting output targets
+###############################################################################
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# CXX flags
-add_compile_options(-m64 -O3 -march=native -g -Wall -Wextra -Werror -Wfatal-errors)
+###############################################################################
+# Getting the modules
+###############################################################################
 
-# Getting sources
-file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/src/*.c ${PROJECT_SOURCE_DIR}/src/*.cpp)
-
-# Modules
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 ###############################################################################
@@ -35,6 +47,12 @@ message(DPDK_LIBRARY_DIRS="${DPDK_LIBRARY_DIRS}")
 
 include_directories(${DPDK_INCLUDE_DIRS})
 link_directories(${DPDK_LIBRARY_DIRS})
+
+###############################################################################
+# Getting the source files
+###############################################################################
+
+file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/src/*.c ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 ###############################################################################
 # Building the pktgen executable

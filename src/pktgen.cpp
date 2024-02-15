@@ -17,12 +17,14 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "clock.h"
+#include "log.h"
 
 // Source/destination MACs
 struct rte_ether_addr src_mac = {{0xb4, 0x96, 0x91, 0xa4, 0x02, 0xe9}};
@@ -78,9 +80,8 @@ static inline int port_init(uint16_t port, unsigned num_rx_queues,
 
   retval = rte_eth_dev_info_get(port, &dev_info);
   if (retval != 0) {
-    fprintf(stderr, "Error during getting device (port %u) info: %s\n", port,
-            strerror(-retval));
-    return retval;
+    rte_exit(EXIT_FAILURE, "Error during getting device (port %u) info: %s\n",
+             port, strerror(-retval));
   }
 
   if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE)
@@ -169,7 +170,7 @@ void wait_to_start() {
   }
 }
 
-static void generate_template_packet(byte_t* pkt) {
+static void generate_template_packet(byte_t* pkt, uint16_t size) {
   // Initialize Ethernet header
   struct rte_ether_hdr* ether_hdr = (struct rte_ether_hdr*)pkt;
 
@@ -182,7 +183,7 @@ static void generate_template_packet(byte_t* pkt) {
 
   ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
   ip_hdr->type_of_service = 0;
-  ip_hdr->total_length = 0;
+  ip_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct rte_ether_hdr));
   ip_hdr->packet_id = 0;
   ip_hdr->fragment_offset = 0;
   ip_hdr->time_to_live = 64;
@@ -241,7 +242,8 @@ static std::vector<std::vector<flow_t>> generate_unique_flows_per_worker() {
 
   auto crc_mask = (uint32_t)((1 << (uint64_t)(config.crc_bits)) - 1);
 
-  printf("Generating %d flows...\n", config.num_flows);
+  LOG("Generating %d flows...", config.num_flows);
+
   while (flows_set.size() != config.num_flows) {
     auto flow = generate_random_flow();
 
@@ -292,11 +294,11 @@ static inline uint64_t compute_ticks_per_burst(rate_gbps_t rate,
 }
 
 static int tx_worker_main(void* arg) {
-  auto worker_config = (worker_config_t*)arg;
+  worker_config_t* worker_config = (worker_config_t*)arg;
 
-  auto pkt_size_without_crc = worker_config->pkt_size - 4;
-  auto num_total_flows = worker_config->flows.size();
-  auto num_base_flows = num_total_flows / 2;
+  bytes_t pkt_size_without_crc = worker_config->pkt_size - 4;
+  size_t num_total_flows = worker_config->flows.size();
+  size_t num_base_flows = num_total_flows / 2;
 
   struct rte_mbuf** mbufs = (struct rte_mbuf**)rte_malloc(
       "mbufs", sizeof(struct rte_mbuf*) * NUM_SAMPLE_PACKETS, 0);
@@ -305,7 +307,7 @@ static int tx_worker_main(void* arg) {
   }
 
   byte_t template_packet[MAX_PKT_SIZE];
-  generate_template_packet(template_packet);
+  generate_template_packet(template_packet, pkt_size_without_crc);
 
   flow_t* base_flows =
       (flow_t*)rte_malloc("base_flows", num_base_flows * sizeof(flow_t), 0);
@@ -330,12 +332,6 @@ static int tx_worker_main(void* arg) {
       rte_exit(EXIT_FAILURE, "Failed to create mbuf\n");
     }
 
-    struct rte_ether_hdr* ether_hdr = (struct rte_ether_hdr*)template_packet;
-    struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(ether_hdr + 1);
-
-    ip_hdr->total_length =
-        rte_cpu_to_be_16(pkt_size_without_crc - sizeof(struct rte_ether_hdr));
-
     rte_pktmbuf_append(mbufs[i], pkt_size_without_crc);
     rte_memcpy(rte_pktmbuf_mtod(mbufs[i], void*), template_packet,
                pkt_size_without_crc);
@@ -348,10 +344,6 @@ static int tx_worker_main(void* arg) {
   worker_config->ready = true;
   wait_to_start();
 
-  auto chosen_flows_idxs = std::vector<uint8_t>(num_base_flows);
-  auto flows_timers = std::vector<ticks_t>(num_base_flows);
-  auto flows_offsets = std::vector<ticks_t>(num_base_flows);
-
   uint64_t last_update_cnt = 0;
 
   // Rate-limiting
@@ -359,9 +351,9 @@ static int tx_worker_main(void* arg) {
       worker_config->runtime->rate_per_core, (worker_config->pkt_size * 8));
 
   // Rate control
-  ticks_t period_end_tick;
+  ticks_t period_end_tick = 0;
   ticks_t first_tick = now();
-  ticks_t period_start_tick = now();
+  ticks_t period_start_tick = first_tick;
 
   ticks_t elapsed_ticks = 0;
   uint32_t mbuf_burst_offset = 0;
@@ -372,17 +364,23 @@ static int tx_worker_main(void* arg) {
   ticks_t flow_ticks = worker_config->runtime->flow_ttl * clock_scale() / 1000;
   ticks_t flow_ticks_offset_inc = flow_ticks / num_base_flows;
 
+  // This is always contain a value in {0,1}, allowing us to alternate between 2
+  // different values of flows (thus inducing churn).
+  std::vector<uint8_t> chosen_flows_idxs(num_base_flows, 0);
+  std::vector<ticks_t> flows_timers(num_base_flows);
+
+  // Spreading out the churn, to avoid bursty churn.
   for (uint32_t i = 0; i < num_base_flows; i++) {
-    chosen_flows_idxs[i] = 0;
-    // Spreading out the churn, to avoid bursty churn.
     ticks_t offset = i * flow_ticks_offset_inc;
     flows_timers[i] = first_tick + offset;
   }
 
-  auto queue_id = worker_config->queue_id;
+  uint16_t queue_id = worker_config->queue_id;
 
   // Run until the application is killed
   while (likely(!quit)) {
+    // Check if the configuration was updated. We probably need to recompute
+    // some stuff before running again.
     if (unlikely(worker_config->runtime->update_cnt > last_update_cnt)) {
       elapsed_ticks += now() - first_tick;
       wait_to_start();
@@ -409,7 +407,7 @@ static int tx_worker_main(void* arg) {
     mbuf_burst_offset = (mbuf_burst_offset + BURST_SIZE) % NUM_SAMPLE_PACKETS;
 
     // Generate a burst of packets
-    for (unsigned i = 0; i < BURST_SIZE; i++) {
+    for (int i = 0; i < BURST_SIZE; i++) {
       rte_mbuf* pkt = mbuf_burst[i];
       total_pkt_size += pkt->pkt_len;
 
@@ -420,15 +418,15 @@ static int tx_worker_main(void* arg) {
 
       uint32_t flow_idx = (mbuf_burst_offset + i) % num_base_flows;
 
-      auto& chosen_flows_idx = chosen_flows_idxs[flow_idx];
-      auto& flow_timer = flows_timers[flow_idx];
+      uint8_t& chosen_flows_idx = chosen_flows_idxs[flow_idx];
+      ticks_t& flow_timer = flows_timers[flow_idx];
 
-      if (period_start_tick >= flow_timer) {
+      if (flow_ticks > 0 && period_start_tick >= flow_timer) {
         flow_timer += flow_ticks;
         chosen_flows_idx = (chosen_flows_idx + 1) % 2;
       }
 
-      auto chosen_flows = flows[chosen_flows_idx];
+      flow_t* chosen_flows = flows[chosen_flows_idx];
 
       ip_hdr->src_addr = chosen_flows[flow_idx].src_ip;
       ip_hdr->dst_addr = chosen_flows[flow_idx].dst_ip;
@@ -461,7 +459,7 @@ static void wait_port_up(uint16_t port_id) {
   struct rte_eth_link link;
   link.link_status = RTE_ETH_LINK_DOWN;
 
-  printf("Waiting for port %u...\n", port_id);
+  LOG("Waiting for port %u...", port_id);
 
   while (link.link_status == RTE_ETH_LINK_DOWN) {
     int retval = rte_eth_link_get(port_id, &link);
@@ -478,7 +476,7 @@ static void test() {
   rate_mbps_t rate = 100 * 1000;
   churn_fpm_t churn = 0;
 
-  printf("Sending at %.2lf Mbps with churn %lu fpm...\n", rate, churn);
+  LOG("Sending at %.2lf Mbps with churn %lu fpm...", rate, churn);
   cmd_rate(rate / 1e3);
   cmd_churn(churn);
 
@@ -497,13 +495,13 @@ static void test() {
   rate_mpps_t mpps = stats.tx_pkts / (duration * 1e6);
   rate_gbps_t gbps = tx_bits / (duration * 1e9);
 
-  printf("\n");
-  printf("~~~~~~ Pktgen ~~~~~~\n");
-  printf("  TX:   %" PRIu64 "\n", stats.tx_pkts);
-  printf("  RX:   %" PRIu64 "\n", stats.rx_pkts);
-  printf("  Loss: %.2lf\n", 100 * loss);
-  printf("  Mpps: %.2lf\n", mpps);
-  printf("  Gbps: %.2lf\n", gbps);
+  LOG("");
+  LOG("~~~~~~ Pktgen ~~~~~~");
+  LOG("  TX:   %" PRIu64 "", stats.tx_pkts);
+  LOG("  RX:   %" PRIu64 "", stats.rx_pkts);
+  LOG("  Loss: %.2lf", 100 * loss);
+  LOG("  Mpps: %.2lf", mpps);
+  LOG("  Gbps: %.2lf", gbps);
 }
 
 int main(int argc, char* argv[]) {
@@ -533,33 +531,38 @@ int main(int argc, char* argv[]) {
   }
 
   /* Initialize all ports. */
-  if (port_init(config.rx.port, 1, 1, mbufs_pools))
+  if (port_init(config.rx.port, 1, 1, mbufs_pools)) {
     rte_exit(EXIT_FAILURE, "Cannot init rx port %" PRIu16 "\n", 0);
+  }
 
   if (port_init(config.tx.port, config.tx.num_cores, config.tx.num_cores,
-                mbufs_pools))
+                mbufs_pools)) {
     rte_exit(EXIT_FAILURE, "Cannot init tx port %" PRIu16 "\n", 0);
+  }
 
   auto flows_per_worker = generate_unique_flows_per_worker();
-  std::vector<worker_config_t*> workers_configs(config.tx.num_cores);
+  std::vector<std::unique_ptr<worker_config_t>> workers_configs(
+      config.tx.num_cores);
 
   for (unsigned i = 0; i < config.tx.num_cores; i++) {
     unsigned lcore_id = config.tx.cores[i];
     unsigned queue_id = i;
-    worker_config_t* worker_config =
-        new worker_config_t(mbufs_pools[i], queue_id, config.pkt_size,
-                            flows_per_worker[i], &config.runtime);
-    workers_configs[i] = worker_config;
-    rte_eal_remote_launch(tx_worker_main, (void*)worker_config, lcore_id);
+
+    workers_configs[i] = std::make_unique<worker_config_t>(
+        mbufs_pools[i], queue_id, config.pkt_size, flows_per_worker[i],
+        &config.runtime);
+
+    rte_eal_remote_launch(
+        tx_worker_main, static_cast<void*>(workers_configs[i].get()), lcore_id);
   }
 
   // We no longer need the arrays. This doesn't free the mbufs themselves
   // though, we still need them.
   rte_free(mbufs_pools);
 
-  printf("Waiting for workers...\n");
+  LOG("Waiting for workers...");
 
-  for (auto worker_config : workers_configs) {
+  for (auto& worker_config : workers_configs) {
     while (!worker_config->ready) {
       sleep_ms(100);
     }
@@ -575,14 +578,10 @@ int main(int argc, char* argv[]) {
   }
 
   quit = true;
-  printf("Waiting for workers to finish...\n");
+  LOG("Waiting for workers to finish...");
 
   // Wait for all processes to complete
   rte_eal_mp_wait_lcore();
-
-  for (auto worker_config : workers_configs) {
-    delete worker_config;
-  }
 
   rte_eal_cleanup();
 

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "log.h"
 #include "pktgen.h"
 
 #define CMD_OPT_HELP "help"
@@ -20,6 +21,7 @@
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
 #define DEFAULT_CRC_UNIQUE_FLOWS false
+#define DEFAULT_TOTAL_FLOWS 10000
 #define DEFAULT_CRC_BITS 32
 
 #define DEFAULT_WARMUP_DURATION 0  // No warmup
@@ -58,28 +60,28 @@ static const struct option long_options[] = {
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
-  printf(
-      "Usage:\n"
+  LOG("Usage:\n"
       "%s [EAL options] --\n"
       "\t[--help]: Show this help and exit\n"
       "\t[--test]: Run test and exit\n"
-      "\t --" CMD_OPT_TOTAL_FLOWS
-      " <#flows>: Total number of flows\n"
-      "\t --" CMD_OPT_PKT_SIZE " <size>: Packet size (bytes) (default=%" PRIu64
+      "\t[--" CMD_OPT_TOTAL_FLOWS
+      "] <#flows>: Total number of flows (default=%" PRIu32
+      ")\n"
+      "\t[--" CMD_OPT_PKT_SIZE "] <size>: Packet size (bytes) (default=%" PRIu64
       "B)\n"
-      "\t --" CMD_OPT_TX_PORT
+      "\t--" CMD_OPT_TX_PORT
       " <port>: TX port\n"
-      "\t --" CMD_OPT_RX_PORT
+      "\t--" CMD_OPT_RX_PORT
       " <port>: RX port\n"
-      "\t --" CMD_OPT_NUM_TX_CORES
+      "\t--" CMD_OPT_NUM_TX_CORES
       " <#cores>: Number of TX cores\n"
-      "\t --" CMD_OPT_EXP_TIME
+      "\t--" CMD_OPT_EXP_TIME
       " <time>: Flow expiration time (in us)\n"
-      "\t [--" CMD_OPT_CRC_UNIQUE_FLOWS
+      "\t[--" CMD_OPT_CRC_UNIQUE_FLOWS
       "]: Flows are CRC unique (default=%s)\n"
-      "\t [--" CMD_OPT_CRC_BITS " <bits>]: CRC bits (default=%" PRIu32 ")\n",
-      argv[0], DEFAULT_PKT_SIZE, DEFAULT_CRC_UNIQUE_FLOWS ? "true" : "false",
-      DEFAULT_CRC_BITS);
+      "\t[--" CMD_OPT_CRC_BITS " <bits>]: CRC bits (default=%" PRIu32 ")",
+      argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE,
+      DEFAULT_CRC_UNIQUE_FLOWS ? "true" : "false", DEFAULT_CRC_BITS);
 }
 
 static uintmax_t parse_int(const char *str, const char *name, int base) {
@@ -100,7 +102,7 @@ static uintmax_t parse_int(const char *str, const char *name, int base) {
 void config_init(int argc, char **argv) {
   // Default configuration values
   config.test_and_exit = false;
-  config.num_flows = 0;
+  config.num_flows = DEFAULT_TOTAL_FLOWS;
   config.crc_unique_flows = DEFAULT_CRC_UNIQUE_FLOWS;
   config.crc_bits = DEFAULT_CRC_BITS;
   config.exp_time = 0;
@@ -108,13 +110,12 @@ void config_init(int argc, char **argv) {
   config.warmup_duration = DEFAULT_WARMUP_DURATION;
   config.warmup_rate = DEFAULT_WARMUP_RATE;
   config.rx.port = 0;
-  config.tx.port = 0;
-  config.tx.num_cores = 0;
+  config.tx.port = 1;
+  config.tx.num_cores = 1;
 
   // Setup runtime configuration
   config.runtime.running = false;
   config.runtime.update_cnt = 0;
-  config.runtime.churn = 0;
   config.runtime.rate_per_core = 0;
   config.runtime.flow_ttl = 0;
 
@@ -158,6 +159,10 @@ void config_init(int argc, char **argv) {
                       "Number of flows must be >= %" PRIu32
                       " (requested %" PRIu16 ").\n",
                       MIN_FLOWS_NUM, config.num_flows);
+
+        PARSER_ASSERT(config.num_flows % 2 == 0,
+                      "Number of flows must be even (requested %" PRIu16 ").\n",
+                      config.num_flows);
       } break;
       case CMD_OPT_CRC_UNIQUE_FLOWS_NUM: {
         config.crc_unique_flows = true;
@@ -219,6 +224,12 @@ void config_init(int argc, char **argv) {
                 ", available=%" PRIu16 ").\n",
                 config.tx.num_cores, nb_cores);
 
+  PARSER_ASSERT((config.num_flows / 2) >= config.tx.num_cores,
+                "Too many cores (%" PRIu16
+                ") for the requested number of flows (%" PRIu16
+                "). Use at most half the number of flows.\n",
+                config.tx.num_cores, config.num_flows);
+
   config.max_churn = ((double)(60.0 * config.num_flows)) /
                      NS_TO_S(MIN_CHURN_ACTION_TIME_MULTIPLER * config.exp_time);
 
@@ -231,24 +242,15 @@ void config_init(int argc, char **argv) {
 }
 
 void config_print() {
-  printf("\n----- Config -----\n");
-
-  printf("RX port:          %" PRIu16 "\n", config.rx.port);
-  printf("TX port:          %" PRIu16 "\n", config.tx.port);
-
-  printf("TX cores:         %" PRIu16 " (", config.tx.num_cores);
-  for (unsigned i = 0; i < config.tx.num_cores; i++) {
-    if (i != 0) printf(",");
-    printf("%" PRIu16, config.tx.cores[i]);
-  }
-  printf(")\n");
-
-  printf("Flows:            %" PRIu16 "\n", config.num_flows);
-  printf("Flows CRC unique: %s\n", config.crc_unique_flows ? "true" : "false");
-  printf("CRC bits:         %" PRIx32 "\n", config.crc_bits);
-  printf("Expiration time:  %" PRIu64 " us\n", config.exp_time / 1000);
-  printf("Packet size       %" PRIu64 " bytes\n", config.pkt_size);
-  printf("Max churn:        %" PRIu64 " fpm\n", config.max_churn);
-
-  printf("------------------\n");
+  LOG("\n----- Config -----");
+  LOG("RX port:          %" PRIu16, config.rx.port);
+  LOG("TX port:          %" PRIu16, config.tx.port);
+  LOG("TX cores:         %" PRIu16, config.tx.num_cores);
+  LOG("Flows:            %" PRIu16 "", config.num_flows);
+  LOG("Flows CRC unique: %s", config.crc_unique_flows ? "true" : "false");
+  LOG("CRC bits:         %" PRIx32 "", config.crc_bits);
+  LOG("Expiration time:  %" PRIu64 " us", config.exp_time / 1000);
+  LOG("Packet size       %" PRIu64 " bytes", config.pkt_size);
+  LOG("Max churn:        %" PRIu64 " fpm", config.max_churn);
+  LOG("------------------\n");
 }

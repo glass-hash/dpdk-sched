@@ -67,7 +67,6 @@ typedef double rate_mpps_t;
 struct runtime_config_t {
   bool running;
   uint64_t update_cnt;
-  churn_fps_t churn;
 
   // Information for each TX worker
   rate_gbps_t rate_per_core;

@@ -29,17 +29,11 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define time_t int64_t
+#include "../log.h"
 
-#ifdef NDEBUG
-#define LOG_DEBUG(...)
-#else
-#define LOG_DEBUG(fmt, ...)                   \
-  {                                           \
-    fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
-    fflush(stderr);                           \
-  }
-#endif
+#define FLOW_CAPACITY 65536
+
+#define time_t int64_t
 
 time_t current_time(void) {
   struct timespec tp;
@@ -1085,7 +1079,7 @@ static void worker_main(void) {
     rte_exit(EXIT_FAILURE, "Error initializing NF");
   }
 
-  printf("Core %u forwarding packets.\n", rte_lcore_id());
+  LOG("Core %u forwarding packets.", rte_lcore_id());
 
   if (rte_eth_dev_count_avail() != 2) {
     rte_exit(EXIT_FAILURE, "We assume there will be exactly 2 devices.");
@@ -1204,7 +1198,7 @@ int main(int argc, char **argv) {
   for (uint16_t device = 0; device < nb_devices; device++) {
     ret = nf_init_device(device, mbuf_pools);
     if (ret == 0) {
-      printf("Initialized device %" PRIu16 ".\n", device);
+      LOG("Initialized device %" PRIu16 ".", device);
     } else {
       rte_exit(EXIT_FAILURE, "Cannot init device %" PRIu16 ": %d", device, ret);
     }
@@ -1286,6 +1280,7 @@ struct rte_eth_rss_conf rss_conf[MAX_NUM_DEVICES] = {
 struct churn_t {
   int64_t last_ts;
   uint64_t allocated_flows;
+  uint64_t expired_flows;
 };
 
 static struct churn_t churns[RTE_MAX_LCORE];
@@ -1294,6 +1289,7 @@ static time_t start_time;
 void churn_init(struct churn_t *churn) {
   churn->last_ts = current_time();
   churn->allocated_flows = 0;
+  churn->expired_flows = 0;
 }
 
 RTE_DEFINE_PER_LCORE(struct Map *, _flows_map);
@@ -1304,14 +1300,15 @@ RTE_DEFINE_PER_LCORE(struct churn_t *, _churn);
 void report() {
   time_t last_time = 0;
   uint64_t allocated_flows = 0;
+  uint64_t expired_flows = 0;
 
-  printf("\n\n");
-  printf("*************************************\n");
-  printf("*                                   *\n");
-  printf("*      CHURN MEASUREMENT REPORT     *\n");
-  printf("*                                   *\n");
-  printf("*************************************\n");
-  printf("\n");
+  LOG("\n");
+  LOG("*************************************");
+  LOG("*                                   *");
+  LOG("*      CHURN MEASUREMENT REPORT     *");
+  LOG("*                                   *");
+  LOG("*************************************");
+  LOG();
 
   unsigned lcore_id;
   RTE_LCORE_FOREACH(lcore_id) {
@@ -1320,19 +1317,22 @@ void report() {
     }
 
     allocated_flows += churns[lcore_id].allocated_flows;
+    expired_flows += churns[lcore_id].expired_flows;
 
-    printf("[%u] Allocated flows: %lu Time: %lu\n", lcore_id,
-           churns[lcore_id].allocated_flows, churns[lcore_id].last_ts);
+    LOG("[%u] allocated %lu expired %lu", lcore_id,
+        churns[lcore_id].allocated_flows, churns[lcore_id].expired_flows);
   }
 
   time_t delta_ns = last_time - start_time;
   double delta_min = ((double)delta_ns / (60.0 * 1e9));
-  double churn_fpm = allocated_flows / delta_min;
 
-  printf("\n");
-  printf("Allocated flows:   %lu\n", allocated_flows);
-  printf("Elapsed time (s):  %.1lf\n", delta_ns / 1e9);
-  printf("Churn (fpm):       %lf\n", churn_fpm);
+  double allocated_fpm = allocated_flows / delta_min;
+  double expired_fpm = expired_flows / delta_min;
+
+  LOG();
+  LOG("Elapsed time (s): %.1lf", delta_ns / 1e9);
+  LOG("Allocated flows:  %lu (%.2lf fpm)", allocated_flows, allocated_fpm);
+  LOG("Expired flows:    %lu (%.2lf fpm)", expired_flows, expired_fpm);
 
   exit(0);
 }
@@ -1345,15 +1345,16 @@ bool nf_init() {
   struct DoubleChain **flows_heap = &RTE_PER_LCORE(_flows_heap);
   struct churn_t **churn = &RTE_PER_LCORE(_churn);
 
-  if (!map_allocate(FlowId_eq, FlowId_hash, 65536u, flows_map)) {
+  if (!map_allocate(FlowId_eq, FlowId_hash, FLOW_CAPACITY, flows_map)) {
     return false;
   }
 
-  if (!vector_allocate(13u, 65536u, FlowId_allocate, flows_values)) {
+  if (!vector_allocate(sizeof(struct FlowId), FLOW_CAPACITY, FlowId_allocate,
+                       flows_values)) {
     return false;
   }
 
-  if (!dchain_allocate(65536u, flows_heap)) {
+  if (!dchain_allocate(FLOW_CAPACITY, flows_heap)) {
     return false;
   }
 
@@ -1379,7 +1380,10 @@ int nf_process(uint16_t device, uint8_t *packet, uint16_t packet_length,
   churn->last_ts = now;
 
   time_t last_time = now - config.expiration_time_us * 1000;  // us to ns
-  expire_items_single_map(flows_heap, flows_values, flows_map, last_time);
+  int num_expired_flows =
+      expire_items_single_map(flows_heap, flows_values, flows_map, last_time);
+
+  churn->expired_flows += num_expired_flows;
 
   struct rte_ether_hdr *ether_hdr = (struct rte_ether_hdr *)(packet);
 
@@ -1435,6 +1439,9 @@ int nf_process(uint16_t device, uint8_t *packet, uint16_t packet_length,
               device);
     return device;
   }
+
+  LOG_DEBUG("[core=%u,dev=%u] Allocated new flow with index %u", rte_lcore_id(),
+            device, flow_index);
 
   struct FlowId *key = 0;
   vector_get(flows_values, flow_index, (void **)&key);

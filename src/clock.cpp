@@ -69,6 +69,7 @@ uint64_t clock_scale() {
     uint64_t end = TscClock::counter();
     tpus = (uint64_t)((end - start) / 1e6);
   }
+
   return tpus;
 }
 

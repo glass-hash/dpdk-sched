@@ -6,8 +6,8 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 ROOT_DIR=$SCRIPT_DIR
 
-RELEASE_BUILD_DIR=$ROOT_DIR/Release
 DEBUG_BUILD_DIR=$ROOT_DIR/Debug
+RELEASE_BUILD_DIR=$ROOT_DIR/Release
 
 build_debug() {
     if [ ! -d $DEBUG_BUILD_DIR ]; then
@@ -35,10 +35,6 @@ build_release() {
     pushd $RELEASE_BUILD_DIR >/dev/null
         ninja
     popd >/dev/null
-}
-
-check_dpdk() {
-    echo $RTE
 }
 
 build_debug

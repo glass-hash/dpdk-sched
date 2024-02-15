@@ -1,6 +1,7 @@
 #include <rte_common.h>
 #include <rte_ethdev.h>
 
+#include "log.h"
 #include "pktgen.h"
 
 static void cmd_stats_display_port(uint16_t port_id) {
@@ -10,34 +11,34 @@ static void cmd_stats_display_port(uint16_t port_id) {
 
   rte_eth_stats_get(port_id, &stats);
 
-  printf("==== Statistics ====\n");
-  printf("Port %" PRIu8 "\n", port_id);
-  printf("    ipackets: %" PRIu64 "\n", stats.ipackets);
-  printf("    opackets: %" PRIu64 "\n", stats.opackets);
-  printf("    ibytes: %" PRIu64 "\n", stats.ibytes);
-  printf("    obytes: %" PRIu64 "\n", stats.obytes);
-  printf("    imissed: %" PRIu64 "\n", stats.imissed);
-  printf("    oerrors: %" PRIu64 "\n", stats.oerrors);
-  printf("    rx_nombuf: %" PRIu64 "\n", stats.rx_nombuf);
-  printf("\n");
+  LOG("==== Statistics ====");
+  LOG("Port %" PRIu8, port_id);
+  LOG("    ipackets: %" PRIu64, stats.ipackets);
+  LOG("    opackets: %" PRIu64, stats.opackets);
+  LOG("    ibytes: %" PRIu64, stats.ibytes);
+  LOG("    obytes: %" PRIu64, stats.obytes);
+  LOG("    imissed: %" PRIu64, stats.imissed);
+  LOG("    oerrors: %" PRIu64, stats.oerrors);
+  LOG("    rx_nombuf: %" PRIu64, stats.rx_nombuf);
+  LOG();
 
-  printf("==== Extended Statistics ====\n");
+  LOG("==== Extended Statistics ====");
   int num_xstats = rte_eth_xstats_get(port_id, NULL, 0);
   struct rte_eth_xstat xstats[max_num_stats];
   if (rte_eth_xstats_get(port_id, xstats, num_xstats) != num_xstats) {
-    fprintf(stderr, "Cannot get xstats (port %u)\n", port_id);
+    WARNING("Cannot get xstats (port %u)", port_id);
     return;
   }
   struct rte_eth_xstat_name xstats_names[max_num_stats];
   if (rte_eth_xstats_get_names(port_id, xstats_names, num_xstats) !=
       num_xstats) {
-    fprintf(stderr, "Cannot get xstats (port %u)\n", port_id);
+    WARNING("Cannot get xstats (port %u)", port_id);
     return;
   }
   for (int i = 0; i < num_xstats; ++i) {
-    printf("%s: %" PRIu64 "\n", xstats_names[i].name, xstats[i].value);
+    LOG("%s: %" PRIu64, xstats_names[i].name, xstats[i].value);
   }
-  printf("\n");
+  LOG();
 }
 
 static uint64_t get_port_xstat(uint16_t port, const char* name) {
@@ -45,12 +46,12 @@ static uint64_t get_port_xstat(uint16_t port, const char* name) {
   uint64_t xstat_value = 0;
 
   if (rte_eth_xstats_get_id_by_name(port, name, &xstat_id) != 0) {
-    fprintf(stderr, "Error retrieving %s xstat ID (port %u)\n", name, port);
+    WARNING("Error retrieving %s xstat ID (port %u)", name, port);
     return xstat_value;
   }
 
   if (rte_eth_xstats_get_by_id(port, &xstat_id, &xstat_value, 1) < 0) {
-    fprintf(stderr, "Error retrieving %s xstat (port %u)\n", name, port);
+    WARNING("Error retrieving %s xstat (port %u)", name, port);
     return xstat_value;
   }
 
@@ -77,11 +78,11 @@ stats_t get_stats() {
 }
 
 void cmd_stats_display() {
-  printf("~~~~ TX port %u ~~~~\n", config.tx.port);
+  LOG("~~~~ TX port %u ~~~~", config.tx.port);
   cmd_stats_display_port(config.tx.port);
 
-  printf("\n");
-  printf("~~~~ RX port %u ~~~~\n", config.rx.port);
+  LOG();
+  LOG("~~~~ RX port %u ~~~~", config.rx.port);
   cmd_stats_display_port(config.rx.port);
 
   cmd_stats_display_compact();
@@ -92,11 +93,11 @@ void cmd_stats_display_compact() {
 
   float loss = (float)(stats.tx_pkts - stats.rx_pkts) / stats.tx_pkts;
 
-  printf("\n");
-  printf("~~~~~~ Pktgen ~~~~~~\n");
-  printf("  TX:   %" PRIu64 "\n", stats.tx_pkts);
-  printf("  RX:   %" PRIu64 "\n", stats.rx_pkts);
-  printf("  Loss: %.2f%%\n", 100 * loss);
+  LOG();
+  LOG("~~~~~~ Pktgen ~~~~~~");
+  LOG("  TX:   %" PRIu64, stats.tx_pkts);
+  LOG("  RX:   %" PRIu64, stats.rx_pkts);
+  LOG("  Loss: %.2f%%", 100 * loss);
 }
 
 static void reset_stats(uint16_t port) {
@@ -104,13 +105,12 @@ static void reset_stats(uint16_t port) {
 
   retval = rte_eth_stats_reset(port);
   if (retval != 0) {
-    fprintf(stderr, "Error reseting stats (port %u) info: %s\n", port,
-            strerror(-retval));
+    WARNING("Error reseting stats (port %u) info: %s", port, strerror(-retval));
   }
 
   retval = rte_eth_xstats_reset(port);
   if (retval != 0) {
-    fprintf(stderr, "Error reseting xstats (port %u) info: %s\n", port,
+    WARNING("Error reseting xstats (port %u) info: %s", port,
             strerror(-retval));
   }
 }

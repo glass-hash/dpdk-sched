@@ -98,7 +98,7 @@ install_dpdk_kmods() {
 	if [ ! -d $DPDK_KMODS_DIR ]; then
 		pushd $DEPS_DIR
 			git clone http://dpdk.org/git/dpdk-kmods
-			sudo mv dpdk-kmods $DPDK_KMODS_DIR | true
+			sudo mv dpdk-kmods $DPDK_KMODS_DIR || true
 		popd
 	fi
 
