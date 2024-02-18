@@ -4,8 +4,9 @@
 
 | Application | Version |
 | ----------- | ------- |
-| DPDK        | 22.11   |
+| cmake       | >=3.16  |
 | meson       | 1.3.1   |
+| DPDK        | 22.11   |
 
 ## Installation instructions
 
