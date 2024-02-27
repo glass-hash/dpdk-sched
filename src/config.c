@@ -248,7 +248,7 @@ void config_print() {
   LOG("TX cores:         %" PRIu16, config.tx.num_cores);
   LOG("Flows:            %" PRIu16 "", config.num_flows);
   LOG("Flows CRC unique: %s", config.crc_unique_flows ? "true" : "false");
-  LOG("CRC bits:         %" PRIx32 "", config.crc_bits);
+  LOG("CRC bits:         %" PRIu32 "", config.crc_bits);
   LOG("Expiration time:  %" PRIu64 " us", config.exp_time / 1000);
   LOG("Packet size       %" PRIu64 " bytes", config.pkt_size);
   LOG("Max churn:        %" PRIu64 " fpm", config.max_churn);
