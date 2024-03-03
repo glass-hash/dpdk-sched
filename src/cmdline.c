@@ -88,7 +88,7 @@ void cmd_churn(churn_fpm_t churn) {
     return;
   }
 
-  uint16_t num_base_flows = config.num_flows / 2;
+  uint32_t num_base_flows = config.num_flows / 2;
 
   if (churn == 0) {
     config.runtime.flow_ttl = 0;

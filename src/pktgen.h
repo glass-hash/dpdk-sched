@@ -76,7 +76,7 @@ struct runtime_config_t {
 struct config_t {
   bool test_and_exit;
 
-  uint16_t num_flows;
+  uint32_t num_flows;
   bool crc_unique_flows;
   uint32_t crc_bits;
   time_ns_t exp_time;

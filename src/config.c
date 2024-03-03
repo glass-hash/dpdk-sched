@@ -157,11 +157,11 @@ void config_init(int argc, char **argv) {
 
         PARSER_ASSERT(config.num_flows >= MIN_FLOWS_NUM,
                       "Number of flows must be >= %" PRIu32
-                      " (requested %" PRIu16 ").\n",
+                      " (requested %" PRIu32 ").\n",
                       MIN_FLOWS_NUM, config.num_flows);
 
         PARSER_ASSERT(config.num_flows % 2 == 0,
-                      "Number of flows must be even (requested %" PRIu16 ").\n",
+                      "Number of flows must be even (requested %" PRIu32 ").\n",
                       config.num_flows);
       } break;
       case CMD_OPT_CRC_UNIQUE_FLOWS_NUM: {
@@ -214,9 +214,10 @@ void config_init(int argc, char **argv) {
   }
 
   PARSER_ASSERT(
-      !config.crc_unique_flows || (config.num_flows <= (1 << config.crc_bits)),
-      "Not enough CRC bits for the requested number of flows (flows=%" PRIu16
-      ", crc bits=%" PRIu16 ", max flows=%" PRIu16 ").\n",
+      !config.crc_unique_flows ||
+          (config.num_flows <= (uint32_t)(1 << config.crc_bits)),
+      "Not enough CRC bits for the requested number of flows (flows=%" PRIu32
+      ", crc bits=%" PRIu32 ", max flows=%" PRIu32 ").\n",
       config.num_flows, config.crc_bits, 1 << config.crc_bits);
 
   PARSER_ASSERT(config.tx.num_cores < nb_cores,
@@ -226,10 +227,11 @@ void config_init(int argc, char **argv) {
 
   PARSER_ASSERT((config.num_flows / 2) >= config.tx.num_cores,
                 "Too many cores (%" PRIu16
-                ") for the requested number of flows (%" PRIu16
+                ") for the requested number of flows (%" PRIu32
                 "). Use at most half the number of flows.\n",
                 config.tx.num_cores, config.num_flows);
 
+  printf("Num flows %u\n", config.num_flows);
   config.max_churn =
       ((double)(60.0 * config.num_flows)) /
       NS_TO_S(MIN_CHURN_ACTION_TIME_MULTIPLIER * config.exp_time);
