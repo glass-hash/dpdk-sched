@@ -231,7 +231,6 @@ void config_init(int argc, char **argv) {
                 "). Use at most half the number of flows.\n",
                 config.tx.num_cores, config.num_flows);
 
-  printf("Num flows %u\n", config.num_flows);
   config.max_churn =
       ((double)(60.0 * config.num_flows)) /
       NS_TO_S(MIN_CHURN_ACTION_TIME_MULTIPLIER * config.exp_time);
