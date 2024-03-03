@@ -25,8 +25,8 @@ extern "C" {
 // the time between alternation becomes smaller than the expiration time
 // completely nullifies the churn. To really make sure that flows are expired,
 // we only perform flow swapping after at least EPOCH_TIME *
-// MIN_CHURN_ACTION_TIME_MULTIPLER time elapsed from the last swap.
-#define MIN_CHURN_ACTION_TIME_MULTIPLER 3
+// MIN_CHURN_ACTION_TIME_MULTIPLIER time elapsed from the last swap.
+#define MIN_CHURN_ACTION_TIME_MULTIPLIER 10
 
 typedef uint64_t bits_t;
 typedef uint64_t bytes_t;
