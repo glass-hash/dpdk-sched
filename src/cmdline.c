@@ -35,27 +35,28 @@ struct cmd_intint_params {
   uint32_t param2;
 };
 
+#define INIT_PARAMETERLESS_COMMAND(var, cmd, str) \
+  cmdline_parse_token_string_t(var) =             \
+      TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, (str));
+
+#define INIT_INT_COMMAND(var, cmd, str) \
+  cmdline_parse_token_string_t(var) =   \
+      TOKEN_STRING_INITIALIZER(struct cmd_int_params, cmd, (str));
+
 /* Parameter-less commands */
-cmdline_parse_token_string_t cmd_quit_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, "quit");
-cmdline_parse_token_string_t cmd_start_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, "start");
-cmdline_parse_token_string_t cmd_stop_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, "stop");
-cmdline_parse_token_string_t cmd_stats_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, "stats");
-cmdline_parse_token_string_t cmd_stats_reset_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_get_params, cmd, "reset");
+INIT_PARAMETERLESS_COMMAND(cmd_quit_token_cmd, cmd, "quit");
+INIT_PARAMETERLESS_COMMAND(cmd_start_token_cmd, cmd, "start");
+INIT_PARAMETERLESS_COMMAND(cmd_stop_token_cmd, cmd, "stop");
+INIT_PARAMETERLESS_COMMAND(cmd_stats_token_cmd, cmd, "stats");
+INIT_PARAMETERLESS_COMMAND(cmd_stats_reset_token_cmd, cmd, "reset");
+INIT_PARAMETERLESS_COMMAND(cmd_flows_token_cmd, cmd, "flows");
 
 /* Commands taking just an int */
-cmdline_parse_token_string_t cmd_rate_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_int_params, cmd, "rate");
-cmdline_parse_token_string_t cmd_churn_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_int_params, cmd, "churn");
-cmdline_parse_token_string_t cmd_run_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_int_params, cmd, "run");
-cmdline_parse_token_string_t cmd_warmup_token_cmd =
-    TOKEN_STRING_INITIALIZER(struct cmd_int_params, cmd, "warmup");
+INIT_INT_COMMAND(cmd_rate_token_cmd, cmd, "rate")
+INIT_INT_COMMAND(cmd_churn_token_cmd, cmd, "churn")
+INIT_INT_COMMAND(cmd_run_token_cmd, cmd, "run")
+INIT_INT_COMMAND(cmd_warmup_token_cmd, cmd, "warmup")
+
 cmdline_parse_token_num_t cmd_int_token_param =
     TOKEN_NUM_INITIALIZER(struct cmd_int_params, param, RTE_UINT32);
 
@@ -163,6 +164,12 @@ static void cmd_stats_callback(__rte_unused void *ptr_params,
   cmd_stats_display_compact();
 }
 
+static void cmd_flows_callback(__rte_unused void *ptr_params,
+                               __rte_unused struct cmdline *ctx,
+                               __rte_unused void *ptr_data) {
+  cmd_flows_display();
+}
+
 static void cmd_stats_reset_callback(__rte_unused void *ptr_params,
                                      __rte_unused struct cmdline *ctx,
                                      __rte_unused void *ptr_data) {
@@ -234,6 +241,14 @@ cmd_stats_cmd = {
 };
 
 CMDLINE_PARSE_INT_NTOKENS(1)
+cmd_flows_cmd = {
+    .f = cmd_flows_callback,
+    .data = NULL,
+    .help_str = "flows\n     Show flows",
+    .tokens = {(void *)&cmd_flows_token_cmd, NULL},
+};
+
+CMDLINE_PARSE_INT_NTOKENS(1)
 cmd_stats_reset_cmd = {
     .f = cmd_stats_reset_callback,
     .data = NULL,
@@ -281,6 +296,7 @@ cmdline_parse_ctx_t list_prompt_commands[] = {
     (cmdline_parse_inst_t *)&cmd_stop_cmd,
     (cmdline_parse_inst_t *)&cmd_stats_cmd,
     (cmdline_parse_inst_t *)&cmd_stats_reset_cmd,
+    (cmdline_parse_inst_t *)&cmd_flows_cmd,
     (cmdline_parse_inst_t *)&cmd_rate_cmd,
     (cmdline_parse_inst_t *)&cmd_churn_cmd,
     (cmdline_parse_inst_t *)&cmd_run_cmd,

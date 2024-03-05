@@ -18,6 +18,7 @@
 #define CMD_OPT_EXP_TIME "exp-time"
 #define CMD_OPT_CRC_UNIQUE_FLOWS "crc-unique-flows"
 #define CMD_OPT_CRC_BITS "crc-bits"
+#define CMD_OPT_RANDOM_SEED "seed"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
 #define DEFAULT_CRC_UNIQUE_FLOWS false
@@ -41,6 +42,7 @@ enum {
   CMD_OPT_EXP_TIME_NUM,
   CMD_OPT_CRC_UNIQUE_FLOWS_NUM,
   CMD_OPT_CRC_BITS_NUM,
+  CMD_OPT_RANDOM_SEED_NUM,
 };
 
 /* if we ever need short options, add to this string */
@@ -57,6 +59,7 @@ static const struct option long_options[] = {
     {CMD_OPT_EXP_TIME, required_argument, NULL, CMD_OPT_EXP_TIME_NUM},
     {CMD_OPT_CRC_UNIQUE_FLOWS, no_argument, NULL, CMD_OPT_CRC_UNIQUE_FLOWS_NUM},
     {CMD_OPT_CRC_BITS, required_argument, NULL, CMD_OPT_CRC_BITS_NUM},
+    {CMD_OPT_RANDOM_SEED, required_argument, NULL, CMD_OPT_RANDOM_SEED_NUM},
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
@@ -79,7 +82,9 @@ void config_print_usage(char **argv) {
       " <time>: Flow expiration time (in us)\n"
       "\t[--" CMD_OPT_CRC_UNIQUE_FLOWS
       "]: Flows are CRC unique (default=%s)\n"
-      "\t[--" CMD_OPT_CRC_BITS " <bits>]: CRC bits (default=%" PRIu32 ")",
+      "\t[--" CMD_OPT_CRC_BITS " <bits>]: CRC bits (default=%" PRIu32
+      ")\n"
+      "\t[--" CMD_OPT_RANDOM_SEED " <seed>]: random seed (default set by DPDK)",
       argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE,
       DEFAULT_CRC_UNIQUE_FLOWS ? "true" : "false", DEFAULT_CRC_BITS);
 }
@@ -207,6 +212,10 @@ void config_init(int argc, char **argv) {
                       "Number of TX cores must be positive (requested %" PRIu16
                       ").\n",
                       config.tx.num_cores);
+      } break;
+      case CMD_OPT_RANDOM_SEED_NUM: {
+        uint64_t seed = parse_int(optarg, CMD_OPT_RANDOM_SEED, 10);
+        rte_srand(seed);
       } break;
       default:
         rte_exit(EXIT_FAILURE, "Unknown option %c\n", opt);

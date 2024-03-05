@@ -12,11 +12,11 @@ RELEASE_BUILD_DIR=$ROOT_DIR/Release
 build_debug() {
     if [ ! -d $DEBUG_BUILD_DIR ]; then
         mkdir -p $DEBUG_BUILD_DIR
-
-        pushd $DEBUG_BUILD_DIR >/dev/null
-            cmake -DCMAKE_BUILD_TYPE=Debug $ROOT_DIR -G Ninja
-        popd >/dev/null
     fi
+
+    pushd $DEBUG_BUILD_DIR >/dev/null
+        cmake -DCMAKE_BUILD_TYPE=Debug $ROOT_DIR -G Ninja
+    popd >/dev/null
 
     pushd $DEBUG_BUILD_DIR >/dev/null
         ninja
@@ -26,11 +26,11 @@ build_debug() {
 build_release() {
     if [ ! -d $RELEASE_BUILD_DIR ]; then
         mkdir -p $RELEASE_BUILD_DIR
-
-        pushd $RELEASE_BUILD_DIR >/dev/null
-            cmake -DCMAKE_BUILD_TYPE=Release $ROOT_DIR -G Ninja
-        popd >/dev/null
     fi
+
+    pushd $RELEASE_BUILD_DIR >/dev/null
+        cmake -DCMAKE_BUILD_TYPE=Release $ROOT_DIR -G Ninja
+    popd >/dev/null
 
     pushd $RELEASE_BUILD_DIR >/dev/null
         ninja

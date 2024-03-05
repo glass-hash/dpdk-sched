@@ -111,6 +111,7 @@ void cmdline_start();
 void cmd_stats_display();
 void cmd_stats_display_compact();
 void cmd_stats_reset();
+void cmd_flows_display();
 void cmd_start();
 void cmd_stop();
 void cmd_rate(rate_gbps_t rate);

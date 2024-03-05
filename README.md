@@ -53,5 +53,6 @@ $ sudo ./Debug/bin/pktgen \
     --rx 0 \
     --tx-cores 1 \
     --crc-unique-flows \
-    --crc-bits 16
+    --crc-bits 16 \
+    --seed 0
 ```
