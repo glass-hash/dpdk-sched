@@ -40,6 +40,8 @@ typedef uint8_t byte_t;
 #define MIN_CRC_BITS 1
 #define MAX_CRC_BITS 32
 
+#define WARMUP_PROTO_ID 0x92  // Reserved transport proto ID for warmup packets
+
 typedef uint64_t time_s_t;
 typedef uint64_t time_ms_t;
 typedef uint64_t time_us_t;
@@ -84,6 +86,8 @@ struct config_t {
 
   time_s_t warmup_duration;
   rate_mbps_t warmup_rate;
+  bool warmup_active;
+  bool mark_warmup_packets;
 
   churn_fpm_t max_churn;
   rate_gbps_t rate;

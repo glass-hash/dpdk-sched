@@ -364,6 +364,12 @@ static int tx_worker_main(void* arg) {
 
       flow_t* chosen_flows = flows[chosen_flows_idx];
 
+      if (config.mark_warmup_packets && config.warmup_active) {
+        ip_hdr->next_proto_id = WARMUP_PROTO_ID;
+      } else {
+        ip_hdr->next_proto_id = IPPROTO_UDP;
+      }
+
       ip_hdr->src_addr = chosen_flows[flow_idx].src_ip;
       ip_hdr->dst_addr = chosen_flows[flow_idx].dst_ip;
       udp_hdr->src_port = chosen_flows[flow_idx].src_port;
@@ -444,6 +450,7 @@ int main(int argc, char* argv[]) {
   quit = false;
 
   signal(SIGINT, signal_handler);
+  signal(SIGQUIT, signal_handler);
   signal(SIGTERM, signal_handler);
 
   /* Initialize the Environment Abstraction Layer (EAL). */

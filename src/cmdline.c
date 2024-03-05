@@ -116,15 +116,28 @@ void cmd_churn(churn_fpm_t churn) {
   signal_new_config();
 }
 
+void cmd_activate_warmup() {
+  config.warmup_active = true;
+  signal_new_config();
+}
+
+void cmd_deactivate_warmup() {
+  config.warmup_active = false;
+  signal_new_config();
+}
+
 void cmd_run(time_s_t duration) {
   signal_new_config();
 
   rate_gbps_t rate = config.rate;
 
   cmd_rate(config.warmup_rate);
+  cmd_activate_warmup();
 
   cmd_start();
   sleep_s(config.warmup_duration);
+
+  cmd_deactivate_warmup();
 
   cmd_rate(rate);
   cmd_stats_reset();
