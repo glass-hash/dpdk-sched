@@ -37,6 +37,24 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 ###############################################################################
+# libPCAP
+###############################################################################
+
+find_package(PCAP REQUIRED)
+
+if (PCAP_FOUND)
+    message(STATUS "Found libpcap")
+    include_directories(${PCAP_INCLUDE_DIR})
+    link_directories(${PCAP_LIBRARIES}/../)
+
+    message(PCAP_INCLUDE_DIR="${PCAP_INCLUDE_DIR}")
+    message(PCAP_LIBRARIES="${PCAP_LIBRARIES}")
+
+else()
+    message (FATAL_ERROR "libpcap not found")
+endif()
+
+###############################################################################
 # DPDK
 ###############################################################################
 
@@ -65,6 +83,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_options(${PROJECT_NAME} PUBLIC "-Wl,--disable-new-dtags")
 
 target_link_libraries(${PROJECT_NAME} ${DPDK_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${PCAP_LIBRARIES})
 
 ###############################################################################
 # Also build an executable for each tool

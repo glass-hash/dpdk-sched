@@ -20,15 +20,16 @@
 #define CMD_CRC_BITS "crc-bits"
 #define CMD_RANDOM_SEED "seed"
 #define CMD_MARK_WARMUP_PKTS "mark-warmup-packets"
+#define CMD_DUMP_FLOWS_TO_FILE "dump-flows-to-file"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
 #define DEFAULT_CRC_UNIQUE_FLOWS false
 #define DEFAULT_TOTAL_FLOWS 10000
 #define DEFAULT_CRC_BITS 32
-
 #define DEFAULT_WARMUP_DURATION 0  // No warmup
 #define DEFAULT_WARMUP_RATE 1      // 1 Mbps
 #define DEFAULT_MARK_WARMUP_PKTS false
+#define DEFAULT_DUMP_FLOWS_TO_FILE false
 
 enum {
   /* long options mapped to short options: first long only option value must
@@ -46,6 +47,7 @@ enum {
   CMD_CRC_BITS_NUM,
   CMD_RANDOM_SEED_NUM,
   CMD_MARK_WARMUP_PKTS_NUM,
+  CMD_DUMP_FLOWS_TO_FILE_NUM,
 };
 
 /* if we ever need short options, add to this string */
@@ -64,6 +66,7 @@ static const struct option long_options[] = {
     {CMD_CRC_BITS, required_argument, NULL, CMD_CRC_BITS_NUM},
     {CMD_RANDOM_SEED, required_argument, NULL, CMD_RANDOM_SEED_NUM},
     {CMD_MARK_WARMUP_PKTS, no_argument, NULL, CMD_MARK_WARMUP_PKTS_NUM},
+    {CMD_DUMP_FLOWS_TO_FILE, no_argument, NULL, CMD_DUMP_FLOWS_TO_FILE_NUM},
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
@@ -92,10 +95,12 @@ void config_print_usage(char **argv) {
       " <seed>]: random seed (default set by DPDK)\n"
       "\t[--" CMD_MARK_WARMUP_PKTS
       "]: mark warmup packets with a custom transport protocol (0x%x) "
-      "(default=%d)",
+      "(default=%d)\n"
+      "\t[--" CMD_DUMP_FLOWS_TO_FILE
+      "]: dump flows to pcap file (default=%d)\n",
       argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE,
       DEFAULT_CRC_UNIQUE_FLOWS ? "true" : "false", DEFAULT_CRC_BITS,
-      WARMUP_PROTO_ID, DEFAULT_MARK_WARMUP_PKTS);
+      WARMUP_PROTO_ID, DEFAULT_MARK_WARMUP_PKTS, DEFAULT_DUMP_FLOWS_TO_FILE);
 }
 
 static uintmax_t parse_int(const char *str, const char *name, int base) {
@@ -125,6 +130,7 @@ void config_init(int argc, char **argv) {
   config.warmup_rate = DEFAULT_WARMUP_RATE;
   config.warmup_active = false;
   config.mark_warmup_packets = DEFAULT_MARK_WARMUP_PKTS;
+  config.dump_flows_to_file = DEFAULT_DUMP_FLOWS_TO_FILE;
   config.rx.port = 0;
   config.tx.port = 1;
   config.tx.num_cores = 1;
@@ -231,6 +237,9 @@ void config_init(int argc, char **argv) {
       case CMD_MARK_WARMUP_PKTS_NUM: {
         config.mark_warmup_packets = true;
       } break;
+      case CMD_DUMP_FLOWS_TO_FILE_NUM: {
+        config.dump_flows_to_file = true;
+      } break;
       default:
         rte_exit(EXIT_FAILURE, "Unknown option %c\n", opt);
     }
@@ -278,5 +287,6 @@ void config_print() {
   LOG("Packet size       %" PRIu64 " bytes", config.pkt_size);
   LOG("Max churn:        %" PRIu64 " fpm", config.max_churn);
   LOG("Mark warmup pkts: %d", config.mark_warmup_packets);
+  LOG("Dump flows:       %d", config.dump_flows_to_file);
   LOG("------------------\n");
 }

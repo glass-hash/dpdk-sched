@@ -17,6 +17,7 @@ extern "C" {
 #define MIN_NUM_MBUFS 8192
 #define DESC_RING_SIZE 1024
 #define NUM_SAMPLE_PACKETS (2 * DESC_RING_SIZE)
+#define DEFAULT_FLOWS_FILE "flows.pcap"
 
 #define MIN_FLOWS_NUM 2
 
@@ -77,6 +78,7 @@ struct runtime_config_t {
 
 struct config_t {
   bool test_and_exit;
+  bool dump_flows_to_file;
 
   uint32_t num_flows;
   bool crc_unique_flows;
