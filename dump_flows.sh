@@ -22,7 +22,5 @@ echo quit | sudo ./Debug/bin/pktgen \
     --tx 1 \
     --rx 0 \
     --tx-cores 1 \
-    --crc-unique-flows \
-    --crc-bits 16 \
     --seed 0 \
     --dump-flows-to-file

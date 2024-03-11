@@ -231,8 +231,8 @@ void config_init(int argc, char **argv) {
                       config.tx.num_cores);
       } break;
       case CMD_RANDOM_SEED_NUM: {
-        uint64_t seed = parse_int(optarg, CMD_RANDOM_SEED, 10);
-        rte_srand(seed);
+        uint32_t seed = parse_int(optarg, CMD_RANDOM_SEED, 10);
+        srand(seed);
       } break;
       case CMD_MARK_WARMUP_PKTS_NUM: {
         config.mark_warmup_packets = true;

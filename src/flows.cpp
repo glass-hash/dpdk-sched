@@ -10,9 +10,8 @@
 std::vector<std::vector<flow_t>> flows_per_worker;
 
 static flow_t generate_random_flow() {
-  return {(rte_be32_t)(rte_rand() & 0xffffffff),
-          (rte_be32_t)(rte_rand() & 0xffffffff),
-          (rte_be16_t)(rte_rand() & 0xffff), (rte_be16_t)(rte_rand() & 0xffff)};
+  return {(rte_be32_t)(rand() & 0xffffffff), (rte_be32_t)(rand() & 0xffffffff),
+          (rte_be16_t)(rand() & 0xffff), (rte_be16_t)(rand() & 0xffff)};
 }
 
 struct flow_hash_t {
