@@ -2,12 +2,16 @@
 
 set -e
 
-flows=$1
-
 if [ $# -eq 0 ]; then
-    echo "Usage: ./dump_flows.sh <number of flows>"
+    echo "Usage: ./dump_flows.sh <number of flows> [seed]"
     exit 1
 fi
+
+flows=$1
+seed=${2:-'0'}
+
+echo "Flows $flows"
+echo "Seed $seed"
 
 ./build.sh
 echo quit | sudo ./Debug/bin/pktgen \
@@ -22,5 +26,5 @@ echo quit | sudo ./Debug/bin/pktgen \
     --tx 1 \
     --rx 0 \
     --tx-cores 1 \
-    --seed 0 \
+    --seed $seed \
     --dump-flows-to-file
