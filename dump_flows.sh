@@ -28,3 +28,6 @@ echo quit | sudo ./Debug/bin/pktgen \
     --tx-cores 1 \
     --seed $seed \
     --dump-flows-to-file
+
+sudo chown $USER:$USER flows.pcap
+mv flows.pcap flows_${flows}_seed_${seed}.pcap
