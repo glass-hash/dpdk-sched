@@ -139,7 +139,7 @@ static inline int port_init(uint16_t port, unsigned num_rx_queues,
 }
 
 struct rte_mempool* create_mbuf_pool(unsigned lcore_id) {
-  unsigned mbuf_entries = (MBUF_CACHE_SIZE + BURST_SIZE + NUM_SAMPLE_PACKETS);
+  unsigned mbuf_entries = MBUF_CACHE_SIZE + BURST_SIZE + NUM_SAMPLE_PACKETS;
   mbuf_entries = RTE_MAX(mbuf_entries, (unsigned)MIN_NUM_MBUFS);
 
   /* Creates a new mempool in memory to hold the mbufs. */
@@ -269,7 +269,7 @@ static inline uint64_t compute_ticks_per_burst(rate_gbps_t rate,
     return 0;
   }
 
-  pkt_size += (20 + 4) * 8;  // CRC and inter-packet gap.
+  pkt_size += (20 + RTE_ETHER_CRC_LEN) * 8;  // CRC and inter-packet gap.
   double packets_per_us = (rate * 1000 / pkt_size);
   uint64_t ticks_per_us = clock_scale();
 
@@ -280,7 +280,7 @@ static inline uint64_t compute_ticks_per_burst(rate_gbps_t rate,
 static int tx_worker_main(void* arg) {
   worker_config_t* worker_config = (worker_config_t*)arg;
 
-  bytes_t pkt_size_without_crc = worker_config->pkt_size - 4;
+  bytes_t pkt_size_without_crc = worker_config->pkt_size - RTE_ETHER_CRC_LEN;
   size_t num_total_flows = worker_config->flows.size();
   size_t num_base_flows = num_total_flows / 2;
 
@@ -392,7 +392,7 @@ static int tx_worker_main(void* arg) {
 
     // Generate a burst of packets
     for (int i = 0; i < BURST_SIZE; i++) {
-      rte_mbuf* pkt = mbuf_burst[i];
+      rte_mbuf* pkt = mbuf_burst[i % NUM_SAMPLE_PACKETS];
       total_pkt_size += pkt->pkt_len;
 
       struct rte_ether_hdr* ether_hdr =

@@ -284,7 +284,7 @@ void config_print() {
   LOG("Flows CRC unique: %s", config.crc_unique_flows ? "true" : "false");
   LOG("CRC bits:         %" PRIu32 "", config.crc_bits);
   LOG("Expiration time:  %" PRIu64 " us", config.exp_time / 1000);
-  LOG("Packet size       %" PRIu64 " bytes", config.pkt_size);
+  LOG("Packet size:      %" PRIu64 " bytes", config.pkt_size);
   LOG("Max churn:        %" PRIu64 " fpm", config.max_churn);
   LOG("Mark warmup pkts: %d", config.mark_warmup_packets);
   LOG("Dump flows:       %d", config.dump_flows_to_file);
