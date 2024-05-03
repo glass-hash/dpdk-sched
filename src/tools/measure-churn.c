@@ -31,6 +31,9 @@
 
 #include "../log.h"
 
+#define DROP ((uint16_t)-1)
+#define FLOOD ((uint16_t)-2)
+
 #define FLOW_CAPACITY 65536
 
 #define time_t int64_t
@@ -986,8 +989,6 @@ bool nf_init(void);
 int nf_process(uint16_t device, uint8_t *buffer, uint16_t packet_length,
                time_t now);
 
-#define FLOOD_FRAME ((uint16_t)-1)
-
 // Unverified support for batching, useful for performance comparisons
 #define BATCH_SIZE 32
 
@@ -1101,9 +1102,9 @@ static void worker_main(void) {
         uint16_t dst_device =
             nf_process(mbufs[n]->port, data, mbufs[n]->pkt_len, NOW);
 
-        if (dst_device == DEVICE) {
+        if (dst_device == DROP) {
           rte_pktmbuf_free(mbufs[n]);
-        } else if (dst_device == FLOOD_FRAME) {
+        } else if (dst_device == FLOOD) {
           flood(mbufs[n], DEVICES_COUNT, queue_id);
         } else {
           mbufs_to_send[tx_count] = mbufs[n];
@@ -1395,7 +1396,7 @@ int nf_process(uint16_t device, uint8_t *packet, uint16_t packet_length,
     // drop
     LOG_DEBUG("[core=%u,dev=%u] Not IP (ethertype 0x%04x)", rte_lcore_id(),
               device, rte_be_to_cpu_16(ether_hdr->ether_type));
-    return device;
+    return DROP;
   }
 
   struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)packet;
@@ -1407,7 +1408,7 @@ int nf_process(uint16_t device, uint8_t *packet, uint16_t packet_length,
       (packet_length < sizeof(struct tcpudp_hdr))) {
     // drop
     LOG_DEBUG("[core=%u,dev=%u] Not TCP/UDP", rte_lcore_id(), device);
-    return device;
+    return DROP;
   }
 
   struct tcpudp_hdr *tcpudp_hdr = (struct tcpudp_hdr *)packet;
