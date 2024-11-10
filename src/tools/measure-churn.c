@@ -1025,7 +1025,7 @@ static int nf_init_device(uint16_t device, struct rte_mempool **mbuf_pools) {
   // device_conf passed to rte_eth_dev_configure cannot be NULL
   struct rte_eth_conf device_conf = {0};
   // device_conf.rxmode.hw_strip_crc = 1;
-  device_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+  device_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
   device_conf.rx_adv_conf.rss_conf = rss_conf[device];
 
   retval = rte_eth_dev_configure(device, num_queues, num_queues, &device_conf);
@@ -1273,10 +1273,10 @@ uint8_t hash_key_1[RSS_HASH_KEY_LENGTH] = {
 struct rte_eth_rss_conf rss_conf[MAX_NUM_DEVICES] = {
     {.rss_key = hash_key_0,
      .rss_key_len = RSS_HASH_KEY_LENGTH,
-     .rss_hf = RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_NONFRAG_IPV4_UDP},
+     .rss_hf = ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP},
     {.rss_key = hash_key_1,
      .rss_key_len = RSS_HASH_KEY_LENGTH,
-     .rss_hf = RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_NONFRAG_IPV4_UDP}};
+     .rss_hf = ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP}};
 
 struct churn_t {
   int64_t last_ts;

@@ -86,14 +86,14 @@ static inline int port_init(uint16_t port, unsigned num_rx_queues,
              port, strerror(-retval));
   }
 
-  if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE)
-    port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
+  if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+    port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 
-  if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM)
-    port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM;
+  if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM)
+    port_conf.txmode.offloads |= DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM;
 
-  if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM)
-    port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM;
+  if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_UDP_CKSUM)
+    port_conf.txmode.offloads |= DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
 
   // Enable RX in promiscuous mode, just in case
   rte_eth_promiscuous_enable(port);
@@ -176,8 +176,8 @@ static void generate_template_packet(byte_t* pkt, uint16_t size) {
   // Initialize Ethernet header
   struct rte_ether_hdr* ether_hdr = (struct rte_ether_hdr*)pkt;
 
-  ether_hdr->src_addr = src_mac;
-  ether_hdr->dst_addr = dst_mac;
+  ether_hdr->s_addr = src_mac;
+  ether_hdr->d_addr = dst_mac;
   ether_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
   // Initialize the IPv4 header
@@ -447,11 +447,11 @@ static int tx_worker_main(void* arg) {
 
 static void wait_port_up(uint16_t port_id) {
   struct rte_eth_link link;
-  link.link_status = RTE_ETH_LINK_DOWN;
+  link.link_status = ETH_LINK_DOWN;
 
   LOG("Waiting for port %u...", port_id);
 
-  while (link.link_status == RTE_ETH_LINK_DOWN) {
+  while (link.link_status == ETH_LINK_DOWN) {
     int retval = rte_eth_link_get(port_id, &link);
     if (retval != 0) {
       rte_exit(EXIT_FAILURE, "Error getting port status (port %u) info: %s\n",
@@ -469,6 +469,7 @@ static void test() {
   LOG("Sending at %.2lf Mbps with churn %lu fpm...", rate, churn);
   cmd_rate(rate / 1e3);
   cmd_churn(churn);
+  cmd_flows_display();
 
   cmd_stats_reset();
 

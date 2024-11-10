@@ -52,7 +52,7 @@ if(PKG_CONFIG_FOUND)
     DPDK
     QUIET
     IMPORTED_TARGET
-    libdpdk>=22.11)
+    libdpdk>=20.11)
 endif()
 
 # We found using Pkg-Config!

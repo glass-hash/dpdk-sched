@@ -9,9 +9,21 @@
 
 std::vector<std::vector<flow_t>> flows_per_worker;
 
-static flow_t generate_random_flow() {
-  return {(rte_be32_t)(rand() & 0xffffffff), (rte_be32_t)(rand() & 0xffffffff),
-          (rte_be16_t)(rand() & 0xffff), (rte_be16_t)(rand() & 0xffff)};
+// static flow_t generate_random_flow() {
+//   return {(rte_be32_t)(rand() & 0xffffffff), (rte_be32_t)(rand() & 0xffffffff),
+//           (rte_be16_t)(rand() & 0xffff), (rte_be16_t)(rand() & 0xffff)};
+// }
+
+static flow_t generate_sequential_flow(uint32_t index) {
+    rte_be32_t src_ip = rte_cpu_to_be_32(0x0A000001);  // 10.0.0.1
+
+    uint32_t base_ip = 0xC0A80000;  // 192.168.0.0
+    rte_be32_t dst_ip = rte_cpu_to_be_32(base_ip + index);
+
+    rte_be16_t src_port = rte_cpu_to_be_16(8080);
+    rte_be16_t dst_port = rte_cpu_to_be_16(80);
+
+    return {src_ip, dst_ip, src_port, dst_port};
 }
 
 struct flow_hash_t {
@@ -42,8 +54,9 @@ void generate_unique_flows_per_worker() {
 
   LOG("Generating %d flows...", config.num_flows);
 
+  uint32_t i = 0;
   while (flows_set.size() != config.num_flows) {
-    auto flow = generate_random_flow();
+    auto flow = generate_sequential_flow(i);
 
     // Already generated. Unlikely, but we still check...
     if (flows_set.find(flow) != flows_set.end()) {
@@ -69,6 +82,7 @@ void generate_unique_flows_per_worker() {
     if (flows_set.size() % 2 == 0) {
       worker_idx = (worker_idx + 1) % config.tx.num_cores;
     }
+    i++;
   }
 }
 
