@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <fstream>
 
 #include "clock.h"
 #include "flows.h"
@@ -486,6 +487,7 @@ static void test() {
   rate_mpps_t mpps = stats.tx_pkts / (duration * 1e6);
   rate_gbps_t gbps = tx_bits / (duration * 1e9);
 
+  std::ofstream statsFile("schedTxStats.csv");
   LOG("");
   LOG("~~~~~~ Pktgen ~~~~~~");
   LOG("  TX:   %" PRIu64 "", stats.tx_pkts);
@@ -493,6 +495,8 @@ static void test() {
   LOG("  Loss: %.2lf", 100 * loss);
   LOG("  Mpps: %.2lf", mpps);
   LOG("  Gbps: %.2lf", gbps);
+  statsFile << "0," << stats.tx_pkts << std::endl;
+  statsFile.close();
 }
 
 int main(int argc, char* argv[]) {
