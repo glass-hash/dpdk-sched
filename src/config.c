@@ -13,7 +13,6 @@
 #define CMD_TOTAL_FLOWS "total-flows"
 #define CMD_PKT_SIZE "pkt-size"
 #define CMD_TX_PORT "tx"
-#define CMD_RX_PORT "rx"
 #define CMD_NUM_TX_CORES "tx-cores"
 #define CMD_EXP_TIME "exp-time"
 #define CMD_CRC_UNIQUE_FLOWS "crc-unique-flows"
@@ -40,7 +39,6 @@ enum {
   CMD_TOTAL_FLOWS_NUM,
   CMD_PKT_SIZE_NUM,
   CMD_TX_PORT_NUM,
-  CMD_RX_PORT_NUM,
   CMD_NUM_TX_CORES_NUM,
   CMD_EXP_TIME_NUM,
   CMD_CRC_UNIQUE_FLOWS_NUM,
@@ -59,7 +57,6 @@ static const struct option long_options[] = {
     {CMD_TOTAL_FLOWS, required_argument, NULL, CMD_TOTAL_FLOWS_NUM},
     {CMD_PKT_SIZE, required_argument, NULL, CMD_PKT_SIZE_NUM},
     {CMD_TX_PORT, required_argument, NULL, CMD_TX_PORT_NUM},
-    {CMD_RX_PORT, required_argument, NULL, CMD_RX_PORT_NUM},
     {CMD_NUM_TX_CORES, required_argument, NULL, CMD_NUM_TX_CORES_NUM},
     {CMD_EXP_TIME, required_argument, NULL, CMD_EXP_TIME_NUM},
     {CMD_CRC_UNIQUE_FLOWS, no_argument, NULL, CMD_CRC_UNIQUE_FLOWS_NUM},
@@ -81,8 +78,6 @@ void config_print_usage(char **argv) {
       "B)\n"
       "\t--" CMD_TX_PORT
       " <port>: TX port\n"
-      "\t--" CMD_RX_PORT
-      " <port>: RX port\n"
       "\t--" CMD_NUM_TX_CORES
       " <#cores>: Number of TX cores\n"
       "\t--" CMD_EXP_TIME
@@ -131,7 +126,6 @@ void config_init(int argc, char **argv) {
   config.warmup_active = false;
   config.mark_warmup_packets = DEFAULT_MARK_WARMUP_PKTS;
   config.dump_flows_to_file = DEFAULT_DUMP_FLOWS_TO_FILE;
-  config.rx.port = 0;
   config.tx.port = 1;
   config.tx.num_cores = 1;
 
@@ -216,13 +210,6 @@ void config_init(int argc, char **argv) {
                       " but only %" PRIu16 " available.\n",
                       config.tx.port, nb_devices);
       } break;
-      case CMD_RX_PORT_NUM: {
-        config.rx.port = parse_int(optarg, CMD_RX_PORT, 10);
-        PARSER_ASSERT(config.rx.port < nb_devices,
-                      "Invalid RX device: requested %" PRIu16
-                      " but only %" PRIu16 " available.\n",
-                      config.rx.port, nb_devices);
-      } break;
       case CMD_NUM_TX_CORES_NUM: {
         config.tx.num_cores = parse_int(optarg, CMD_NUM_TX_CORES, 10);
         PARSER_ASSERT(config.tx.num_cores > 0,
@@ -277,7 +264,6 @@ void config_init(int argc, char **argv) {
 
 void config_print() {
   LOG("\n----- Config -----");
-  LOG("RX port:          %" PRIu16, config.rx.port);
   LOG("TX port:          %" PRIu16, config.tx.port);
   LOG("TX cores:         %" PRIu16, config.tx.num_cores);
   LOG("Flows:            %" PRIu16 "", config.num_flows);

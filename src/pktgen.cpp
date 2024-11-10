@@ -66,13 +66,8 @@ struct worker_config_t {
         runtime(_runtime) {}
 };
 
-// Initializes a given port using global settings.
-static inline int port_init(uint16_t port, unsigned num_rx_queues,
-                            unsigned num_tx_queues,
-                            struct rte_mempool** mbuf_pools) {
+static inline int port_init(uint16_t port) {
   struct rte_eth_conf port_conf = port_conf_default;
-  const uint16_t rx_rings = num_rx_queues, tx_rings = num_tx_queues;
-  uint16_t nb_rxd = DESC_RING_SIZE;
   uint16_t nb_txd = DESC_RING_SIZE;
   int retval;
   uint16_t q;
@@ -96,30 +91,15 @@ static inline int port_init(uint16_t port, unsigned num_rx_queues,
   if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_UDP_CKSUM)
     port_conf.txmode.offloads |= DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
 
-  // Enable RX in promiscuous mode, just in case
-  rte_eth_promiscuous_enable(port);
-  if (rte_eth_promiscuous_get(port) != 1) {
-    return retval;
-  }
-
   /* Configure the Ethernet device. */
-  retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
+  // No Rx queues, just 1 Tx queue
+  retval = rte_eth_dev_configure(port, 0, 1, &port_conf);
   if (retval != 0) return retval;
-
-  retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
-  if (retval != 0) return retval;
-
-  /* Allocate and set up 1 RX queue per RX worker port. */
-  for (q = 0; q < rx_rings; q++) {
-    retval = rte_eth_rx_queue_setup(
-        port, q, nb_rxd, rte_eth_dev_socket_id(port), NULL, mbuf_pools[q]);
-    if (retval < 0) return retval;
-  }
 
   txconf = dev_info.default_txconf;
   txconf.offloads = port_conf.txmode.offloads;
   /* Allocate and set up 1 TX queue per TX worker port. */
-  for (q = 0; q < tx_rings; q++) {
+  for (q = 0; q < 1; q++) {
     retval = rte_eth_tx_queue_setup(port, q, nb_txd,
                                     rte_eth_dev_socket_id(port), &txconf);
     if (retval < 0) return retval;
@@ -480,8 +460,6 @@ static void test() {
 
   stats_t stats = get_stats();
 
-  float loss = (float)(stats.tx_pkts - stats.rx_pkts) / stats.tx_pkts;
-
   bits_t tx_bits = (config.pkt_size + 20) * 8 * stats.tx_pkts;
 
   rate_mpps_t mpps = stats.tx_pkts / (duration * 1e6);
@@ -491,8 +469,6 @@ static void test() {
   LOG("");
   LOG("~~~~~~ Pktgen ~~~~~~");
   LOG("  TX:   %" PRIu64 "", stats.tx_pkts);
-  LOG("  RX:   %" PRIu64 "", stats.rx_pkts);
-  LOG("  Loss: %.2lf", 100 * loss);
   LOG("  Mpps: %.2lf", mpps);
   LOG("  Gbps: %.2lf", gbps);
   statsFile << "0," << stats.tx_pkts << std::endl;
@@ -526,13 +502,7 @@ int main(int argc, char* argv[]) {
     mbufs_pools[i] = create_mbuf_pool(lcore_id);
   }
 
-  /* Initialize all ports. */
-  if (port_init(config.rx.port, 1, 1, mbufs_pools)) {
-    rte_exit(EXIT_FAILURE, "Cannot init rx port %" PRIu16 "\n", 0);
-  }
-
-  if (port_init(config.tx.port, config.tx.num_cores, config.tx.num_cores,
-                mbufs_pools)) {
+  if (port_init(config.tx.port)) {
     rte_exit(EXIT_FAILURE, "Cannot init tx port %" PRIu16 "\n", 0);
   }
 
@@ -569,7 +539,6 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  wait_port_up(config.rx.port);
   wait_port_up(config.tx.port);
 
   if (config.test_and_exit) {

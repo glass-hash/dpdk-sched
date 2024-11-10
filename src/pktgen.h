@@ -100,10 +100,6 @@ struct config_t {
     uint16_t cores[RTE_MAX_LCORE];
   } tx;
 
-  struct {
-    uint16_t port;
-  } rx;
-
   struct runtime_config_t runtime;
 };
 
@@ -125,7 +121,6 @@ void cmd_churn(churn_fpm_t churn);
 void cmd_timer(time_s_t time);
 
 struct stats_t {
-  uint64_t rx_pkts;
   uint64_t tx_pkts;
 };
 
