@@ -48,6 +48,7 @@ struct flow_t {
 struct config_t {
   uint32_t num_flows;
   bytes_t pkt_size;
+  uint32_t timeout;
 
   struct {
     uint16_t port;

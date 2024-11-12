@@ -13,6 +13,7 @@
 #define CMD_PKT_SIZE "pkt-size"
 #define CMD_TX_PORT "tx"
 #define CMD_NUM_TX_CORES "tx-cores"
+#define CMD_TIMEOUT "timeout"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
 #define DEFAULT_TOTAL_FLOWS 10000
@@ -26,6 +27,7 @@ enum {
   CMD_PKT_SIZE_NUM,
   CMD_TX_PORT_NUM,
   CMD_NUM_TX_CORES_NUM,
+  CMD_TIMEOUT_NUM,
 };
 
 /* if we ever need short options, add to this string */
@@ -37,6 +39,7 @@ static const struct option long_options[] = {
     {CMD_PKT_SIZE, required_argument, NULL, CMD_PKT_SIZE_NUM},
     {CMD_TX_PORT, required_argument, NULL, CMD_TX_PORT_NUM},
     {CMD_NUM_TX_CORES, required_argument, NULL, CMD_NUM_TX_CORES_NUM},
+    {CMD_TIMEOUT, optional_argument, NULL, CMD_TIMEOUT_NUM},
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
@@ -51,7 +54,8 @@ void config_print_usage(char **argv) {
       "\t--" CMD_TX_PORT
       " <port>: TX port\n"
       "\t--" CMD_NUM_TX_CORES
-      " <#cores>: Number of TX cores\n",
+      " <#cores>: Number of TX cores\n"
+      "\t[--timeout] <timeout value>: Test duration (seconds)\n",
       argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE);
 }
 
@@ -74,6 +78,7 @@ void config_init(int argc, char **argv) {
   // Default configuration values
   config.num_flows = DEFAULT_TOTAL_FLOWS;
   config.pkt_size = DEFAULT_PKT_SIZE;
+  config.timeout = 0;
   config.tx.port = 1;
   config.tx.num_cores = 1;
 
@@ -115,9 +120,6 @@ void config_init(int argc, char **argv) {
                       " (requested %" PRIu32 ").\n",
                       MIN_FLOWS_NUM, config.num_flows);
 
-        // PARSER_ASSERT(config.num_flows % 2 == 0,
-        //               "Number of flows must be even (requested %" PRIu32 ").\n",
-        //               config.num_flows);
       } break;
       case CMD_PKT_SIZE_NUM: {
         config.pkt_size = parse_int(optarg, CMD_PKT_SIZE, 10);
@@ -140,6 +142,11 @@ void config_init(int argc, char **argv) {
                       "Number of TX cores must be positive (requested %" PRIu16
                       ").\n",
                       config.tx.num_cores);
+      } break;
+      case CMD_TIMEOUT_NUM: {
+        if (optarg != NULL) {
+            config.timeout = parse_int(optarg, CMD_TIMEOUT, 10);
+        }
       } break;
       default:
         rte_exit(EXIT_FAILURE, "Unknown option %c\n", opt);
@@ -165,5 +172,6 @@ void config_print() {
   LOG("TX cores:         %" PRIu16, config.tx.num_cores);
   LOG("Flows:            %" PRIu16 "", config.num_flows);
   LOG("Packet size:      %" PRIu64 " bytes", config.pkt_size);
+  LOG("Timeout:          %" PRIu32 " seconds", config.timeout);
   LOG("------------------\n");
 }

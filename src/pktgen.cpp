@@ -266,7 +266,6 @@ static int tx_worker_main(void* arg) {
   }
 
   rte_free(mbufs);
-  std::cout << "worker ending" << std::endl;
   return 0;
 }
 
@@ -303,6 +302,9 @@ static void get_port_stats(uint16_t port_id) {
   LOG("    oerrors: %" PRIu64, stats.oerrors);
   LOG("    rx_nombuf: %" PRIu64, stats.rx_nombuf);
   LOG();
+  std::ofstream statsFile("schedTxStats.csv");
+  statsFile << stats.obytes << "," << stats.opackets << std::endl;
+  statsFile.close();
 
   LOG("==== Extended Statistics ====");
   int num_xstats = rte_eth_xstats_get(port_id, NULL, 0);
@@ -377,6 +379,14 @@ int main(int argc, char* argv[]) {
   rte_free(mbufs_pools);
   wait_port_up(config.tx.port);
 
+  uint64_t cur_time = 0;
+  while(!quit) {
+    sleep_ms(1000);
+    cur_time++;
+    if(cur_time == config.timeout) {
+      quit = true;
+    }
+  }
   LOG("Waiting for workers to finish...");
   // Wait for all processes to complete
   rte_eal_mp_wait_lcore();
