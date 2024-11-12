@@ -13,12 +13,9 @@
 #define CMD_PKT_SIZE "pkt-size"
 #define CMD_TX_PORT "tx"
 #define CMD_NUM_TX_CORES "tx-cores"
-#define CMD_EXP_TIME "exp-time"
-#define CMD_DUMP_FLOWS_TO_FILE "dump-flows-to-file"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
 #define DEFAULT_TOTAL_FLOWS 10000
-#define DEFAULT_DUMP_FLOWS_TO_FILE false
 
 enum {
   /* long options mapped to short options: first long only option value must
@@ -29,8 +26,6 @@ enum {
   CMD_PKT_SIZE_NUM,
   CMD_TX_PORT_NUM,
   CMD_NUM_TX_CORES_NUM,
-  CMD_EXP_TIME_NUM,
-  CMD_DUMP_FLOWS_TO_FILE_NUM,
 };
 
 /* if we ever need short options, add to this string */
@@ -42,8 +37,6 @@ static const struct option long_options[] = {
     {CMD_PKT_SIZE, required_argument, NULL, CMD_PKT_SIZE_NUM},
     {CMD_TX_PORT, required_argument, NULL, CMD_TX_PORT_NUM},
     {CMD_NUM_TX_CORES, required_argument, NULL, CMD_NUM_TX_CORES_NUM},
-    {CMD_EXP_TIME, required_argument, NULL, CMD_EXP_TIME_NUM},
-    {CMD_DUMP_FLOWS_TO_FILE, no_argument, NULL, CMD_DUMP_FLOWS_TO_FILE_NUM},
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
@@ -58,13 +51,8 @@ void config_print_usage(char **argv) {
       "\t--" CMD_TX_PORT
       " <port>: TX port\n"
       "\t--" CMD_NUM_TX_CORES
-      " <#cores>: Number of TX cores\n"
-      "\t--" CMD_EXP_TIME
-      " <time>: Flow expiration time (in us)\n"
-      "\t[--" CMD_DUMP_FLOWS_TO_FILE
-      "]: dump flows to pcap file (default=%d)\n",
-      argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE,
-      DEFAULT_DUMP_FLOWS_TO_FILE);
+      " <#cores>: Number of TX cores\n",
+      argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE);
 }
 
 static uintmax_t parse_int(const char *str, const char *name, int base) {
@@ -85,9 +73,7 @@ static uintmax_t parse_int(const char *str, const char *name, int base) {
 void config_init(int argc, char **argv) {
   // Default configuration values
   config.num_flows = DEFAULT_TOTAL_FLOWS;
-  config.exp_time = 0;
   config.pkt_size = DEFAULT_PKT_SIZE;
-  config.dump_flows_to_file = DEFAULT_DUMP_FLOWS_TO_FILE;
   config.tx.port = 1;
   config.tx.num_cores = 1;
 
@@ -138,10 +124,6 @@ void config_init(int argc, char **argv) {
         //               "Number of flows must be even (requested %" PRIu32 ").\n",
         //               config.num_flows);
       } break;
-      case CMD_EXP_TIME_NUM: {
-        time_us_t exp_time = parse_int(optarg, CMD_EXP_TIME, 10);
-        config.exp_time = 1000 * exp_time;
-      } break;
       case CMD_PKT_SIZE_NUM: {
         config.pkt_size = parse_int(optarg, CMD_PKT_SIZE, 10);
         PARSER_ASSERT(
@@ -163,9 +145,6 @@ void config_init(int argc, char **argv) {
                       "Number of TX cores must be positive (requested %" PRIu16
                       ").\n",
                       config.tx.num_cores);
-      } break;
-      case CMD_DUMP_FLOWS_TO_FILE_NUM: {
-        config.dump_flows_to_file = true;
       } break;
       default:
         rte_exit(EXIT_FAILURE, "Unknown option %c\n", opt);
@@ -190,8 +169,6 @@ void config_print() {
   LOG("TX port:          %" PRIu16, config.tx.port);
   LOG("TX cores:         %" PRIu16, config.tx.num_cores);
   LOG("Flows:            %" PRIu16 "", config.num_flows);
-  LOG("Expiration time:  %" PRIu64 " us", config.exp_time / 1000);
   LOG("Packet size:      %" PRIu64 " bytes", config.pkt_size);
-  LOG("Dump flows:       %d", config.dump_flows_to_file);
   LOG("------------------\n");
 }

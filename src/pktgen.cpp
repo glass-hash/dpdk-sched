@@ -202,51 +202,6 @@ static void generate_template_packet(byte_t* pkt, uint16_t size) {
   }
 }
 
-static void modify_template_packet(byte_t* pkt, const flow_t& flow) {
-  struct rte_ether_hdr* ether_hdr = (struct rte_ether_hdr*)pkt;
-  struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(ether_hdr + 1);
-  struct rte_udp_hdr* udp_hdr = (struct rte_udp_hdr*)(ip_hdr + 1);
-  ip_hdr->src_addr = flow.src_ip;
-  ip_hdr->dst_addr = flow.dst_ip;
-  udp_hdr->src_port = flow.src_port;
-  udp_hdr->dst_port = flow.dst_port;
-}
-
-static void dump_flows_to_file() {
-  bytes_t pkt_size_without_crc = config.pkt_size - 4;
-
-  byte_t template_packet[MAX_PKT_SIZE];
-  generate_template_packet(template_packet, pkt_size_without_crc);
-
-  struct pcap_pkthdr header = {.ts = {.tv_sec = 0, .tv_usec = 0},
-                               .caplen = (bpf_u_int32)pkt_size_without_crc,
-                               .len = (bpf_u_int32)pkt_size_without_crc};
-
-  pcap_t* p = NULL;
-  pcap_dumper_t* pd = NULL;
-
-  p = pcap_open_dead(DLT_EN10MB, 65535);
-  assert(p);
-
-  if ((pd = pcap_dump_open(p, DEFAULT_FLOWS_FILE)) == NULL) {
-    fprintf(stderr, "Error opening savefile \"%s\" for writing: %s\n",
-            DEFAULT_FLOWS_FILE, pcap_geterr(p));
-    exit(7);
-  }
-
-  for (unsigned i = 0; i < config.tx.num_cores; i++) {
-    const auto& flows = get_worker_flows(i);
-
-    for (const auto& flow : flows) {
-      modify_template_packet(template_packet, flow);
-      pcap_dump((u_char*)pd, &header, template_packet);
-    }
-  }
-
-  pcap_dump_close(pd);
-  pcap_close(p);
-}
-
 static int tx_worker_main(void* arg) {
   worker_config_t* worker_config = (worker_config_t*)arg;
 
@@ -405,10 +360,6 @@ int main(int argc, char* argv[]) {
   }
 
   generate_unique_flows_per_worker();
-
-  if (config.dump_flows_to_file) {
-    dump_flows_to_file();
-  }
 
   std::vector<std::unique_ptr<worker_config_t>> workers_configs(
       config.tx.num_cores);
