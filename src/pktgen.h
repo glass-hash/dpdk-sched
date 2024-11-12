@@ -12,12 +12,11 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-#define BURST_SIZE 32
+#define BURST_SIZE 64
 #define MBUF_CACHE_SIZE 512
 #define MIN_NUM_MBUFS 8192
 #define DESC_RING_SIZE 1024
-#define NUM_SAMPLE_PACKETS (2 * DESC_RING_SIZE)
-#define DEFAULT_FLOWS_FILE "flows.pcap"
+#define NUM_SAMPLE_PACKETS (DESC_RING_SIZE * 2)
 
 #define MIN_FLOWS_NUM 1
 
@@ -48,15 +47,12 @@ struct flow_t {
 
 
 struct config_t {
-  uint32_t num_flows;
+  uint32_t flows_per_worker;
   bytes_t pkt_size;
   uint32_t timeout;
-
-  struct {
-    uint16_t port;
-    uint16_t num_cores;
-    uint16_t cores[RTE_MAX_LCORE];
-  } tx;
+  uint16_t port;
+  uint16_t num_cores;
+  uint16_t cores[RTE_MAX_LCORE];
 };
 
 extern struct config_t config;
@@ -64,12 +60,6 @@ extern struct config_t config;
 void config_init(int argc, char **argv);
 void config_print();
 void config_print_usage(char **argv);
-
-struct stats_t {
-  uint64_t tx_pkts;
-};
-
-struct stats_t get_stats();
 
 #ifdef __cplusplus
 }

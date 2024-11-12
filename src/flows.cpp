@@ -72,9 +72,10 @@ flow_t generate_flow(uint32_t index, uint16_t pkt_size) {
 }
 
 void generate_flows() {
-  LOG("Generating %d flows...", config.num_flows);
+  uint32_t total_flows = config.flows_per_worker * config.num_cores;
+  LOG("Generating %d flows...", total_flows);
   uint32_t i = 0;
-  while (flows.size() != config.num_flows) {
+  while (flows.size() != total_flows) {
     auto flow = generate_flow(i, config.pkt_size);
     flows.push_back(flow);
     i++;
@@ -83,7 +84,6 @@ void generate_flows() {
 
 void flows_display() {
   LOG();
-  LOG("~~~~~~ %u flows ~~~~~~", config.num_flows);
     for (const auto& flow : flows) {
       LOG("%u.%u.%u.%u:%u -> %u.%u.%u.%u:%u", (flow.src_ip >> 0) & 0xff,
           (flow.src_ip >> 8) & 0xff, (flow.src_ip >> 16) & 0xff,

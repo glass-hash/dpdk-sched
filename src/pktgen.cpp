@@ -43,9 +43,11 @@ static const struct rte_eth_conf port_conf_default = {};
 struct worker_config_t {
   struct rte_mempool* pool;
   uint16_t queue_id;
-  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id)
+  uint16_t flows_per_worker;
+  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id, uint16_t _flows_per_worker)
       : pool(_pool),
-        queue_id(_queue_id) {}
+        queue_id(_queue_id),
+        flows_per_worker(_flows_per_worker) {}
 };
 
 static inline int port_init(uint16_t port) {
@@ -77,9 +79,12 @@ static inline int port_init(uint16_t port) {
   if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_UDP_CKSUM)
     port_conf.txmode.offloads |= DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
 
+  std::cout << "Max Tx queues = " << dev_info.max_tx_queues << std::endl;
+
   /* Configure the Ethernet device. */
-  // No Rx queues, just 1 Tx queue
-  retval = rte_eth_dev_configure(port, 0, 1, &port_conf);
+  // No Rx queues
+  // per core tx queue
+  retval = rte_eth_dev_configure(port, 0, config.num_cores, &port_conf);
   if (retval != 0) {
       std::cerr << "rte_eth_dev_configure failed " << retval << std::endl;
       return retval;
@@ -87,8 +92,8 @@ static inline int port_init(uint16_t port) {
 
   txconf = dev_info.default_txconf;
   txconf.offloads = port_conf.txmode.offloads;
-  /* Allocate and set up 1 TX queue per TX worker port. */
-  for (q = 0; q < 1; q++) {
+  /* Allocate and set up 1 TX queue per TX worker. */
+  for (q = 0; q < config.num_cores; q++) {
     retval = rte_eth_tx_queue_setup(port, q, nb_txd,
                                     rte_eth_dev_socket_id(port), &txconf);
     if (retval < 0) {
@@ -141,50 +146,11 @@ struct rte_mempool* create_mbuf_pool(unsigned lcore_id) {
   return mbuf_pool;
 }
 
-/*static int tx_worker_main(void* arg) {
-  worker_config_t* worker_config = (worker_config_t*)arg;
-  const uint16_t port_id = config.tx.port;
-  const uint16_t queue_id = worker_config->queue_id;
-
-  struct rte_mbuf* tx_burst[BURST_SIZE];
-
-  uint32_t flow_idx = 0;
-  uint32_t num_flows = flows.size();
-
-  while (likely(!quit)) {
-      const flow_t& current_flow = flows[flow_idx];
-
-      // Prepare burst using current flow's packet
-      for (int i = 0; i < BURST_SIZE; i++) {
-          tx_burst[i] = rte_pktmbuf_alloc(worker_config->pool);
-          if (unlikely(tx_burst[i] == nullptr)) {
-              rte_exit(EXIT_FAILURE, "Failed to allocate mbuf\n");
-          }
-          rte_memcpy(rte_pktmbuf_mtod(tx_burst[i], void*),
-                    current_flow.pkt_buf,
-                    current_flow.size);
-      }
-
-      // Send burst
-      rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
-
-      flow_idx = (flow_idx + 1) % num_flows;
-      for (uint16_t i = 0; i < BURST_SIZE; i++) {
-        rte_pktmbuf_free(tx_burst[i]);
-      }
-  }
-
-  for (int i = 0; i < BURST_SIZE; i++) {
-    rte_pktmbuf_free(tx_burst[i]);
-  }
-  return 0;
-}*/
-
 static int tx_worker_main(void* arg) {
     worker_config_t* worker_config = (worker_config_t*)arg;
-    const uint16_t port_id = config.tx.port;
+    const uint16_t port_id = config.port;
     const uint16_t queue_id = worker_config->queue_id;
-    const uint32_t num_flows = flows.size();
+    const uint16_t flows_per_worker = worker_config->flows_per_worker;
 
     // Pre-allocate burst of mbufs
     struct rte_mbuf* tx_burst[BURST_SIZE];
@@ -196,7 +162,9 @@ static int tx_worker_main(void* arg) {
         }
     }
 
-    uint32_t flow_idx = 0;
+    uint32_t flow_idx_start = queue_id * flows_per_worker;
+    uint32_t flow_idx_end = flow_idx_start + flows_per_worker;
+    uint32_t flow_idx = flow_idx_start;
 
     while (likely(!quit)) {
         const flow_t& current_flow = flows[flow_idx];
@@ -213,8 +181,12 @@ static int tx_worker_main(void* arg) {
         // Send burst
         rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
 
-        flow_idx = (flow_idx + 1) % num_flows;
+        flow_idx++;
+        if(flow_idx == flow_idx_end) {
+            flow_idx = flow_idx_start;
+        }
     }
+
     for (uint16_t i = 0; i < BURST_SIZE; i++) {
         rte_pktmbuf_free(tx_burst[i]);
     }
@@ -298,14 +270,14 @@ int main(int argc, char* argv[]) {
   config_print();
 
   struct rte_mempool** mbufs_pools = (struct rte_mempool**)rte_malloc(
-      "mbufs pools", sizeof(struct rte_mempool*) * config.tx.num_cores, 0);
+      "mbufs pools", sizeof(struct rte_mempool*) * config.num_cores, 0);
 
-  for (unsigned i = 0; i < config.tx.num_cores; i++) {
-    unsigned lcore_id = config.tx.cores[i];
+  for (unsigned i = 0; i < config.num_cores; i++) {
+    unsigned lcore_id = config.cores[i];
     mbufs_pools[i] = create_mbuf_pool(lcore_id);
   }
 
-  if (port_init(config.tx.port)) {
+  if (port_init(config.port)) {
     rte_exit(EXIT_FAILURE, "Cannot init tx port %" PRIu16 "\n", 0);
   }
 
@@ -313,12 +285,12 @@ int main(int argc, char* argv[]) {
   flows_display();
 
   std::vector<std::unique_ptr<worker_config_t>> workers_configs(
-      config.tx.num_cores);
+      config.num_cores);
 
-  for (unsigned i = 0; i < config.tx.num_cores; i++) {
-    unsigned lcore_id = config.tx.cores[i];
+  for (unsigned i = 0; i < config.num_cores; i++) {
+    unsigned lcore_id = config.cores[i];
     workers_configs[i] = std::make_unique<worker_config_t>(
-        mbufs_pools[i], i);
+        mbufs_pools[i], i, config.flows_per_worker);
 
     std::cout << "Launching on core " << lcore_id << std::endl;
     rte_eal_remote_launch(
@@ -328,7 +300,7 @@ int main(int argc, char* argv[]) {
   // We no longer need the arrays. This doesn't free the mbufs themselves
   // though, we still need them.
   rte_free(mbufs_pools);
-  wait_port_up(config.tx.port);
+  wait_port_up(config.port);
 
   uint64_t cur_time = 0;
   while(!quit) {
