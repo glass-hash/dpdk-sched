@@ -310,7 +310,7 @@ int main(int argc, char* argv[]) {
   // Wait for all processes to complete
   rte_eal_mp_wait_lcore();
 
-  get_port_stats(0);
+  get_port_stats(config.port);
 
   free_flows();
   rte_eal_cleanup();
