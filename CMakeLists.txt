@@ -90,7 +90,6 @@ target_link_libraries(${PROJECT_NAME} ${PCAP_LIBRARIES})
 ###############################################################################
 
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/pktgen.cpp)
-file(GLOB SOURCES_TOOLS ${PROJECT_SOURCE_DIR}/src/tools/*.c ${PROJECT_SOURCE_DIR}/src/tools/*.cpp)
 
 foreach(SOURCE_TOOL ${SOURCES_TOOLS})
     get_filename_component(TOOL_NAME ${SOURCE_TOOL} NAME_WE)

@@ -38,4 +38,4 @@ build_release() {
 }
 
 build_debug
-build_release
+# build_release

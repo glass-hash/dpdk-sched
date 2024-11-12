@@ -9,11 +9,6 @@
 
 std::vector<std::vector<flow_t>> flows_per_worker;
 
-// static flow_t generate_random_flow() {
-//   return {(rte_be32_t)(rand() & 0xffffffff), (rte_be32_t)(rand() & 0xffffffff),
-//           (rte_be16_t)(rand() & 0xffff), (rte_be16_t)(rand() & 0xffff)};
-// }
-
 static flow_t generate_sequential_flow(uint32_t index) {
     rte_be32_t src_ip = rte_cpu_to_be_32(0x0A000001);  // 10.0.0.1
 
@@ -47,10 +42,7 @@ void generate_unique_flows_per_worker() {
   flows_per_worker = std::vector<std::vector<flow_t>>(config.tx.num_cores);
 
   std::unordered_set<flow_t, flow_hash_t, flow_comp_t> flows_set;
-  std::unordered_set<crc32_t> flows_crc;
   int worker_idx = 0;
-
-  auto crc_mask = (uint32_t)((1 << (uint64_t)(config.crc_bits)) - 1);
 
   LOG("Generating %d flows...", config.num_flows);
 
@@ -61,18 +53,6 @@ void generate_unique_flows_per_worker() {
     // Already generated. Unlikely, but we still check...
     if (flows_set.find(flow) != flows_set.end()) {
       continue;
-    }
-
-    if (config.crc_unique_flows) {
-      auto crc = calculate_crc32((byte_t*)&flow, sizeof(flow)) & crc_mask;
-
-      // Although the flow is unique, its masked CRC is not.
-      if (flows_crc.find(crc) != flows_crc.end()) {
-        continue;
-      }
-
-      // We're good.
-      flows_crc.insert(crc);
     }
 
     flows_set.insert(flow);
