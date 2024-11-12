@@ -53,17 +53,13 @@ struct worker_config_t {
   bytes_t pkt_size;
   std::vector<flow_t> flows;
 
-  const runtime_config_t* runtime;
-
   worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id,
-                  bytes_t _pkt_size, const std::vector<flow_t>& _flows,
-                  const runtime_config_t* _runtime)
+                  bytes_t _pkt_size, const std::vector<flow_t>& _flows)
       : ready(false),
         pool(_pool),
         queue_id(_queue_id),
         pkt_size(_pkt_size),
-        flows(_flows),
-        runtime(_runtime) {}
+        flows(_flows) {}
 };
 
 static inline int port_init(uint16_t port) {
@@ -369,8 +365,7 @@ int main(int argc, char* argv[]) {
     unsigned queue_id = i;
 
     workers_configs[i] = std::make_unique<worker_config_t>(
-        mbufs_pools[i], queue_id, config.pkt_size, get_worker_flows(i),
-        &config.runtime);
+        mbufs_pools[i], queue_id, config.pkt_size, get_worker_flows(i));
 
     std::cout << "Launching on core " << lcore_id << std::endl;
     rte_eal_remote_launch(

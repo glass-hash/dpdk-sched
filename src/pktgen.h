@@ -44,33 +44,16 @@ struct flow_t {
   rte_be16_t dst_port;
 };
 
-typedef double rate_gbps_t;
-typedef double rate_mbps_t;
-
-typedef double rate_mpps_t;
-
-struct runtime_config_t {
-  bool running;
-  uint64_t update_cnt;
-
-  // Information for each TX worker
-  rate_gbps_t rate_per_core;
-};
 
 struct config_t {
-  bool dump_flows_to_file;
   uint32_t num_flows;
-  time_ns_t exp_time;
   bytes_t pkt_size;
-  rate_gbps_t rate;
 
   struct {
     uint16_t port;
     uint16_t num_cores;
     uint16_t cores[RTE_MAX_LCORE];
   } tx;
-
-  struct runtime_config_t runtime;
 };
 
 extern struct config_t config;

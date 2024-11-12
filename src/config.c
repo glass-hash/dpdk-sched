@@ -77,11 +77,6 @@ void config_init(int argc, char **argv) {
   config.tx.port = 1;
   config.tx.num_cores = 1;
 
-  // Setup runtime configuration
-  config.runtime.running = false;
-  config.runtime.update_cnt = 0;
-  config.runtime.rate_per_core = 0;
-
   unsigned nb_devices = rte_eth_dev_count_avail();
   unsigned nb_cores = rte_lcore_count();
 
