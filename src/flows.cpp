@@ -72,7 +72,7 @@ flow_t generate_flow(uint32_t index, uint16_t pkt_size) {
 }
 
 void generate_flows() {
-  uint32_t total_flows = config.flows_per_worker * config.num_cores;
+  uint32_t total_flows = config.flows_per_core * config.num_cores;
   LOG("Generating %d flows...", total_flows);
   uint32_t i = 0;
   while (flows.size() != total_flows) {

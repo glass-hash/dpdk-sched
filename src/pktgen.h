@@ -47,7 +47,7 @@ struct flow_t {
 
 
 struct config_t {
-  uint32_t flows_per_worker;
+  uint32_t flows_per_core;
   bytes_t pkt_size;
   uint32_t timeout;
   uint16_t port;

@@ -9,24 +9,24 @@
 #include "pktgen.h"
 
 #define CMD_HELP "help"
-#define CMD_FLOWS_PER_WORKER "flows-per-worker"
+#define CMD_FLOWS_PER_CORE "flows-per-core"
 #define CMD_PKT_SIZE "pkt-size"
 #define CMD_TX_PORT "tx"
-#define CMD_NUM_TX_CORES "tx-cores"
+#define CMD_NUM_CORES "num-cores"
 #define CMD_TIMEOUT "timeout"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
-#define DEFAULT_FLOWS_PER_WORKER 10000
+#define DEFAULT_FLOWS_PER_CORE 10000
 
 enum {
   /* long options mapped to short options: first long only option value must
    * be >= 256, so that it does not conflict with short options.
    */
   CMD_HELP_NUM = 256,
-  CMD_FLOWS_PER_WORKER_NUM,
+  CMD_FLOWS_PER_CORE_NUM,
   CMD_PKT_SIZE_NUM,
   CMD_TX_PORT_NUM,
-  CMD_NUM_TX_CORES_NUM,
+  CMD_NUM_CORES_NUM,
   CMD_TIMEOUT_NUM,
 };
 
@@ -35,10 +35,10 @@ static const char short_options[] = "";
 
 static const struct option long_options[] = {
     {CMD_HELP, no_argument, NULL, CMD_HELP_NUM},
-    {CMD_FLOWS_PER_WORKER, required_argument, NULL, CMD_FLOWS_PER_WORKER_NUM},
+    {CMD_FLOWS_PER_CORE, required_argument, NULL, CMD_FLOWS_PER_CORE_NUM},
     {CMD_PKT_SIZE, required_argument, NULL, CMD_PKT_SIZE_NUM},
     {CMD_TX_PORT, required_argument, NULL, CMD_TX_PORT_NUM},
-    {CMD_NUM_TX_CORES, required_argument, NULL, CMD_NUM_TX_CORES_NUM},
+    {CMD_NUM_CORES, required_argument, NULL, CMD_NUM_CORES_NUM},
     {CMD_TIMEOUT, optional_argument, NULL, CMD_TIMEOUT_NUM},
     {NULL, 0, NULL, 0}};
 
@@ -46,17 +46,17 @@ void config_print_usage(char **argv) {
   LOG("Usage:\n"
       "%s [EAL options] --\n"
       "\t[--help]: Show this help and exit\n"
-      "\t[--" CMD_FLOWS_PER_WORKER
+      "\t[--" CMD_FLOWS_PER_CORE
       "] <#flows>: Total number of flows (default=%" PRIu32
       ")\n"
       "\t[--" CMD_PKT_SIZE "] <size>: Packet size (bytes) (default=%" PRIu64
       "B)\n"
       "\t--" CMD_TX_PORT
       " <port>: TX port\n"
-      "\t--" CMD_NUM_TX_CORES
+      "\t--" CMD_NUM_CORES
       " <#cores>: Number of TX cores\n"
       "\t[--timeout] <timeout value>: Test duration (seconds)\n",
-      argv[0], DEFAULT_FLOWS_PER_WORKER, DEFAULT_PKT_SIZE);
+      argv[0], DEFAULT_FLOWS_PER_CORE, DEFAULT_PKT_SIZE);
 }
 
 static uintmax_t parse_int(const char *str, const char *name, int base) {
@@ -76,7 +76,7 @@ static uintmax_t parse_int(const char *str, const char *name, int base) {
 
 void config_init(int argc, char **argv) {
   // Default configuration values
-  config.flows_per_worker = 0;
+  config.flows_per_core = 0;
   config.pkt_size = DEFAULT_PKT_SIZE;
   config.timeout = 0;
   config.port = 1;
@@ -112,13 +112,13 @@ void config_init(int argc, char **argv) {
         config_print_usage(argv);
         exit(0);
       } break;
-      case CMD_FLOWS_PER_WORKER_NUM: {
-        config.flows_per_worker = parse_int(optarg, CMD_FLOWS_PER_WORKER, 10);
+      case CMD_FLOWS_PER_CORE_NUM: {
+        config.flows_per_core = parse_int(optarg, CMD_FLOWS_PER_CORE, 10);
 
-        PARSER_ASSERT(config.flows_per_worker >= MIN_FLOWS_NUM,
+        PARSER_ASSERT(config.flows_per_core >= MIN_FLOWS_NUM,
                       "Flows per worker must be >= %" PRIu32
                       " (requested %" PRIu32 ").\n",
-                      MIN_FLOWS_NUM, config.flows_per_worker);
+                      MIN_FLOWS_NUM, config.flows_per_core);
 
       } break;
       case CMD_PKT_SIZE_NUM: {
@@ -136,8 +136,8 @@ void config_init(int argc, char **argv) {
                       " but only %" PRIu16 " available.\n",
                       config.port, nb_devices);
       } break;
-      case CMD_NUM_TX_CORES_NUM: {
-        config.num_cores = parse_int(optarg, CMD_NUM_TX_CORES, 10);
+      case CMD_NUM_CORES_NUM: {
+        config.num_cores = parse_int(optarg, CMD_NUM_CORES, 10);
         PARSER_ASSERT(config.num_cores > 0,
                       "Number of TX cores must be positive (requested %" PRIu16
                       ").\n",
@@ -169,8 +169,8 @@ void config_init(int argc, char **argv) {
 void config_print() {
   LOG("\n----- Config -----");
   LOG("TX port:          %" PRIu16, config.port);
-  LOG("TX cores:         %" PRIu16, config.num_cores);
-  LOG("Flows per worker: %" PRIu16 "", config.flows_per_worker);
+  LOG("Num of cores:     %" PRIu16, config.num_cores);
+  LOG("Flows per core:   %" PRIu16 "", config.flows_per_core);
   LOG("Packet size:      %" PRIu64 " bytes", config.pkt_size);
   LOG("Timeout:          %" PRIu32 " seconds", config.timeout);
   LOG("------------------\n");

@@ -43,11 +43,11 @@ static const struct rte_eth_conf port_conf_default = {};
 struct worker_config_t {
   struct rte_mempool* pool;
   uint16_t queue_id;
-  uint16_t flows_per_worker;
-  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id, uint16_t _flows_per_worker)
+  uint16_t flows_per_core;
+  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id, uint16_t _flows_per_core)
       : pool(_pool),
         queue_id(_queue_id),
-        flows_per_worker(_flows_per_worker) {}
+        flows_per_core(_flows_per_core) {}
 };
 
 static inline int port_init(uint16_t port) {
@@ -79,11 +79,8 @@ static inline int port_init(uint16_t port) {
   if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_UDP_CKSUM)
     port_conf.txmode.offloads |= DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
 
-  std::cout << "Max Tx queues = " << dev_info.max_tx_queues << std::endl;
-
   /* Configure the Ethernet device. */
   // No Rx queues
-  // per core tx queue
   retval = rte_eth_dev_configure(port, 0, config.num_cores, &port_conf);
   if (retval != 0) {
       std::cerr << "rte_eth_dev_configure failed " << retval << std::endl;
@@ -150,7 +147,7 @@ static int tx_worker_main(void* arg) {
     worker_config_t* worker_config = (worker_config_t*)arg;
     const uint16_t port_id = config.port;
     const uint16_t queue_id = worker_config->queue_id;
-    const uint16_t flows_per_worker = worker_config->flows_per_worker;
+    const uint16_t flows_per_core = worker_config->flows_per_core;
 
     // Pre-allocate burst of mbufs
     struct rte_mbuf* tx_burst[BURST_SIZE];
@@ -162,8 +159,8 @@ static int tx_worker_main(void* arg) {
         }
     }
 
-    uint32_t flow_idx_start = queue_id * flows_per_worker;
-    uint32_t flow_idx_end = flow_idx_start + flows_per_worker;
+    uint32_t flow_idx_start = queue_id * flows_per_core;
+    uint32_t flow_idx_end = flow_idx_start + flows_per_core;
     uint32_t flow_idx = flow_idx_start;
 
     while (likely(!quit)) {
@@ -282,7 +279,6 @@ int main(int argc, char* argv[]) {
   }
 
   generate_flows();
-  flows_display();
 
   std::vector<std::unique_ptr<worker_config_t>> workers_configs(
       config.num_cores);
@@ -290,7 +286,7 @@ int main(int argc, char* argv[]) {
   for (unsigned i = 0; i < config.num_cores; i++) {
     unsigned lcore_id = config.cores[i];
     workers_configs[i] = std::make_unique<worker_config_t>(
-        mbufs_pools[i], i, config.flows_per_worker);
+        mbufs_pools[i], i, config.flows_per_core);
 
     std::cout << "Launching on core " << lcore_id << std::endl;
     rte_eal_remote_launch(
