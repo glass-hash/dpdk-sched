@@ -29,10 +29,6 @@
 #include "flows.h"
 #include "log.h"
 
-// Source/destination MACs
-struct rte_ether_addr src_mac = {{0xb4, 0x96, 0x91, 0xa4, 0x02, 0xe9}};
-struct rte_ether_addr dst_mac = {{0xb4, 0x96, 0x91, 0xa4, 0x04, 0x21}};
-
 volatile bool quit;
 struct config_t config;
 
@@ -45,21 +41,11 @@ static const struct rte_eth_conf port_conf_default = {};
 
 // Per worker configuration
 struct worker_config_t {
-  bool ready;
-
   struct rte_mempool* pool;
   uint16_t queue_id;
-
-  bytes_t pkt_size;
-  std::vector<flow_t> flows;
-
-  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id,
-                  bytes_t _pkt_size, const std::vector<flow_t>& _flows)
-      : ready(false),
-        pool(_pool),
-        queue_id(_queue_id),
-        pkt_size(_pkt_size),
-        flows(_flows) {}
+  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id)
+      : pool(_pool),
+        queue_id(_queue_id) {}
 };
 
 static inline int port_init(uint16_t port) {
@@ -155,118 +141,85 @@ struct rte_mempool* create_mbuf_pool(unsigned lcore_id) {
   return mbuf_pool;
 }
 
-static void generate_template_packet(byte_t* pkt, uint16_t size) {
-  // Initialize Ethernet header
-  struct rte_ether_hdr* ether_hdr = (struct rte_ether_hdr*)pkt;
+/*static int tx_worker_main(void* arg) {
+  worker_config_t* worker_config = (worker_config_t*)arg;
+  const uint16_t port_id = config.tx.port;
+  const uint16_t queue_id = worker_config->queue_id;
 
-  ether_hdr->s_addr = src_mac;
-  ether_hdr->d_addr = dst_mac;
-  ether_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+  struct rte_mbuf* tx_burst[BURST_SIZE];
 
-  // Initialize the IPv4 header
-  struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(ether_hdr + 1);
+  uint32_t flow_idx = 0;
+  uint32_t num_flows = flows.size();
 
-  ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
-  ip_hdr->type_of_service = 0;
-  ip_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct rte_ether_hdr));
-  ip_hdr->packet_id = 0;
-  ip_hdr->fragment_offset = 0;
-  ip_hdr->time_to_live = 64;
-  ip_hdr->next_proto_id = IPPROTO_UDP;
-  ip_hdr->hdr_checksum = 0;  // Parameter
-  ip_hdr->src_addr = 0;      // Parameter
-  ip_hdr->dst_addr = 0;      // Parameter
+  while (likely(!quit)) {
+      const flow_t& current_flow = flows[flow_idx];
 
-  // Initialize the UDP header
-  struct rte_udp_hdr* udp_hdr = (struct rte_udp_hdr*)(ip_hdr + 1);
+      // Prepare burst using current flow's packet
+      for (int i = 0; i < BURST_SIZE; i++) {
+          tx_burst[i] = rte_pktmbuf_alloc(worker_config->pool);
+          if (unlikely(tx_burst[i] == nullptr)) {
+              rte_exit(EXIT_FAILURE, "Failed to allocate mbuf\n");
+          }
+          rte_memcpy(rte_pktmbuf_mtod(tx_burst[i], void*),
+                    current_flow.pkt_buf,
+                    current_flow.size);
+      }
 
-  udp_hdr->src_port = 0;  // Parameter
-  udp_hdr->dst_port = 0;  // Parameter
-  udp_hdr->dgram_cksum = 0;
-  udp_hdr->dgram_len = rte_cpu_to_be_16(
-      size - (sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr)));
+      // Send burst
+      rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
 
-  // Fill payload with 1s.
-  constexpr uint16_t max_pkt_size_no_crc = MAX_PKT_SIZE - 4;
-
-  byte_t* payload = (byte_t*)(((char*)udp_hdr) + sizeof(struct rte_udp_hdr));
-  bytes_t payload_size = max_pkt_size_no_crc - sizeof(struct rte_ether_hdr) -
-                         sizeof(struct rte_ipv4_hdr) -
-                         sizeof(struct rte_udp_hdr);
-  for (bytes_t i = 0; i < payload_size; ++i) {
-    payload[i] = 0xff;
+      flow_idx = (flow_idx + 1) % num_flows;
+      for (uint16_t i = 0; i < BURST_SIZE; i++) {
+        rte_pktmbuf_free(tx_burst[i]);
+      }
   }
-}
+
+  for (int i = 0; i < BURST_SIZE; i++) {
+    rte_pktmbuf_free(tx_burst[i]);
+  }
+  return 0;
+}*/
 
 static int tx_worker_main(void* arg) {
-  worker_config_t* worker_config = (worker_config_t*)arg;
+    worker_config_t* worker_config = (worker_config_t*)arg;
+    const uint16_t port_id = config.tx.port;
+    const uint16_t queue_id = worker_config->queue_id;
+    const uint32_t num_flows = flows.size();
 
-  bytes_t pkt_size_without_crc = worker_config->pkt_size - RTE_ETHER_CRC_LEN;
-  size_t num_total_flows = worker_config->flows.size();
-
-  struct rte_mbuf** mbufs = (struct rte_mbuf**)rte_malloc(
-      "mbufs", sizeof(struct rte_mbuf*) * NUM_SAMPLE_PACKETS, 0);
-  if (mbufs == NULL) {
-    rte_exit(EXIT_FAILURE, "Cannot allocate mbufs\n");
-  }
-
-  byte_t template_packet[MAX_PKT_SIZE];
-  generate_template_packet(template_packet, pkt_size_without_crc);
-
-  flow_t* flows =
-      (flow_t*)rte_malloc("flows", num_total_flows * sizeof(flow_t), 0);
-
-  for (uint32_t i = 0; i < num_total_flows; i++) {
-    flows[i] = worker_config->flows[i];
-  }
-
-  // Prefill buffers with template packet.
-  for (uint32_t i = 0; i < NUM_SAMPLE_PACKETS; i++) {
-    mbufs[i] = rte_pktmbuf_alloc(worker_config->pool);
-
-    if (unlikely(mbufs[i] == nullptr)) {
-      rte_exit(EXIT_FAILURE, "Failed to create mbuf\n");
-    }
-
-    rte_pktmbuf_append(mbufs[i], pkt_size_without_crc);
-    rte_memcpy(rte_pktmbuf_mtod(mbufs[i], void*), template_packet,
-               pkt_size_without_crc);
-  }
-
-  uint32_t mbuf_burst_offset = 0;
-
-  bytes_t total_pkt_size = 0;
-  uint64_t num_total_tx = 0;
-
-  uint16_t queue_id = worker_config->queue_id;
-
-  // Run until the application is killed
-  while (likely(!quit)) {
-    rte_mbuf** mbuf_burst = mbufs + mbuf_burst_offset;
-    mbuf_burst_offset = (mbuf_burst_offset + BURST_SIZE) % NUM_SAMPLE_PACKETS;
-
-    // Generate a burst of packets
+    // Pre-allocate burst of mbufs
+    struct rte_mbuf* tx_burst[BURST_SIZE];
     for (int i = 0; i < BURST_SIZE; i++) {
-      rte_mbuf* pkt = mbuf_burst[i % NUM_SAMPLE_PACKETS];
-      total_pkt_size += pkt->pkt_len;
-
-      struct rte_ether_hdr* ether_hdr =
-          rte_pktmbuf_mtod(pkt, struct rte_ether_hdr*);
-      struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(ether_hdr + 1);
-      ip_hdr->next_proto_id = IPPROTO_UDP;
-
-      // HACK(sadok): Increase refcnt to avoid freeing.
-      pkt->refcnt = MIN_NUM_MBUFS;
+        // Allocate new mbuf for each packet
+        tx_burst[i] = rte_pktmbuf_alloc(worker_config->pool);
+        if (unlikely(tx_burst[i] == nullptr)) {
+            rte_exit(EXIT_FAILURE, "Failed to allocate mbuf\n");
+        }
     }
 
-    uint16_t num_tx =
-        rte_eth_tx_burst(config.tx.port, queue_id, mbuf_burst, BURST_SIZE);
+    uint32_t flow_idx = 0;
 
-    num_total_tx += num_tx;
-  }
+    while (likely(!quit)) {
+        const flow_t& current_flow = flows[flow_idx];
+        for (int i = 0; i < BURST_SIZE; i++) {
+            // Append and copy data
+            rte_pktmbuf_reset(tx_burst[i]);
+            uint8_t* packet = (uint8_t*)rte_pktmbuf_append(tx_burst[i], current_flow.size);
+            if (packet == NULL) {
+                rte_exit(EXIT_FAILURE, "Failed to append mbuf\n");
+            }
+            rte_memcpy(packet, current_flow.pkt_buf, current_flow.size);
+        }
 
-  rte_free(mbufs);
-  return 0;
+        // Send burst
+        rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
+
+        flow_idx = (flow_idx + 1) % num_flows;
+    }
+    for (uint16_t i = 0; i < BURST_SIZE; i++) {
+        rte_pktmbuf_free(tx_burst[i]);
+    }
+
+    return 0;
 }
 
 static void wait_port_up(uint16_t port_id) {
@@ -352,22 +305,20 @@ int main(int argc, char* argv[]) {
     mbufs_pools[i] = create_mbuf_pool(lcore_id);
   }
 
-  std::cout << "tx port is " << config.tx.port << std::endl;
   if (port_init(config.tx.port)) {
     rte_exit(EXIT_FAILURE, "Cannot init tx port %" PRIu16 "\n", 0);
   }
 
-  generate_unique_flows_per_worker();
+  generate_flows();
+  flows_display();
 
   std::vector<std::unique_ptr<worker_config_t>> workers_configs(
       config.tx.num_cores);
 
   for (unsigned i = 0; i < config.tx.num_cores; i++) {
     unsigned lcore_id = config.tx.cores[i];
-    unsigned queue_id = i;
-
     workers_configs[i] = std::make_unique<worker_config_t>(
-        mbufs_pools[i], queue_id, config.pkt_size, get_worker_flows(i));
+        mbufs_pools[i], i);
 
     std::cout << "Launching on core " << lcore_id << std::endl;
     rte_eal_remote_launch(
@@ -393,6 +344,7 @@ int main(int argc, char* argv[]) {
 
   get_port_stats(0);
 
+  free_flows();
   rte_eal_cleanup();
 
   return 0;

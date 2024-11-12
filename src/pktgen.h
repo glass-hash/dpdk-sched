@@ -42,6 +42,8 @@ struct flow_t {
   rte_be32_t dst_ip;
   rte_be16_t src_port;
   rte_be16_t dst_port;
+  uint8_t *pkt_buf;
+  uint16_t size;
 };
 
 

@@ -5,7 +5,10 @@
 
 #include "pktgen.h"
 
-void generate_unique_flows_per_worker();
-const std::vector<flow_t>& get_worker_flows(unsigned worker_id);
+extern std::vector<flow_t> flows;
+
+void generate_flows();
+void free_flows();
+void flows_display();
 
 #endif
