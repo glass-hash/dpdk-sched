@@ -14,7 +14,6 @@
 #define CMD_TX_PORT "tx"
 #define CMD_NUM_TX_CORES "tx-cores"
 #define CMD_EXP_TIME "exp-time"
-#define CMD_RANDOM_SEED "seed"
 #define CMD_DUMP_FLOWS_TO_FILE "dump-flows-to-file"
 
 #define DEFAULT_PKT_SIZE MIN_PKT_SIZE
@@ -31,7 +30,6 @@ enum {
   CMD_TX_PORT_NUM,
   CMD_NUM_TX_CORES_NUM,
   CMD_EXP_TIME_NUM,
-  CMD_RANDOM_SEED_NUM,
   CMD_DUMP_FLOWS_TO_FILE_NUM,
 };
 
@@ -45,7 +43,6 @@ static const struct option long_options[] = {
     {CMD_TX_PORT, required_argument, NULL, CMD_TX_PORT_NUM},
     {CMD_NUM_TX_CORES, required_argument, NULL, CMD_NUM_TX_CORES_NUM},
     {CMD_EXP_TIME, required_argument, NULL, CMD_EXP_TIME_NUM},
-    {CMD_RANDOM_SEED, required_argument, NULL, CMD_RANDOM_SEED_NUM},
     {CMD_DUMP_FLOWS_TO_FILE, no_argument, NULL, CMD_DUMP_FLOWS_TO_FILE_NUM},
     {NULL, 0, NULL, 0}};
 
@@ -64,8 +61,6 @@ void config_print_usage(char **argv) {
       " <#cores>: Number of TX cores\n"
       "\t--" CMD_EXP_TIME
       " <time>: Flow expiration time (in us)\n"
-      "\t[--" CMD_RANDOM_SEED
-      " <seed>]: random seed (default set by DPDK)\n"
       "\t[--" CMD_DUMP_FLOWS_TO_FILE
       "]: dump flows to pcap file (default=%d)\n",
       argv[0], DEFAULT_TOTAL_FLOWS, DEFAULT_PKT_SIZE,
@@ -168,10 +163,6 @@ void config_init(int argc, char **argv) {
                       "Number of TX cores must be positive (requested %" PRIu16
                       ").\n",
                       config.tx.num_cores);
-      } break;
-      case CMD_RANDOM_SEED_NUM: {
-        uint32_t seed = parse_int(optarg, CMD_RANDOM_SEED, 10);
-        srand(seed);
       } break;
       case CMD_DUMP_FLOWS_TO_FILE_NUM: {
         config.dump_flows_to_file = true;
