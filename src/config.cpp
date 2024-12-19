@@ -43,20 +43,19 @@ static const struct option long_options[] = {
     {NULL, 0, NULL, 0}};
 
 void config_print_usage(char **argv) {
-  LOG("Usage:\n"
-      "%s [EAL options] --\n"
-      "\t[--help]: Show this help and exit\n"
-      "\t[--" CMD_FLOWS_PER_CORE
-      "] <#flows>: Total number of flows (default=%" PRIu32
-      ")\n"
-      "\t[--" CMD_PKT_SIZE "] <size>: Packet size (bytes) (default=%" PRIu64
-      "B)\n"
-      "\t--" CMD_TX_PORT
-      " <port>: TX port\n"
-      "\t--" CMD_NUM_CORES
-      " <#cores>: Number of TX cores\n"
-      "\t[--timeout] <timeout value>: Test duration (seconds)\n",
-      argv[0], DEFAULT_FLOWS_PER_CORE, DEFAULT_PKT_SIZE);
+  std::cout << "Usage:\n"
+            << argv[0] << " [EAL options] --\n"
+            << "\t[--help]: Show this help and exit\n"
+            << "\t[--" CMD_FLOWS_PER_CORE
+            << "] <#flows>: Total number of flows, default = "
+            << DEFAULT_FLOWS_PER_CORE << "\n"
+            << "\t[--" CMD_PKT_SIZE
+               "] <size>: Packet size (bytes) (default=%" PRIu64
+            << "B)\n"
+            << "\t--" CMD_TX_PORT << " <port>: TX port\n"
+            << "\t--" CMD_NUM_CORES << " <#cores>: Number of TX cores\n"
+            << "\t[--timeout] <timeout value>: Test duration (seconds)\n"
+            << DEFAULT_PKT_SIZE;
 }
 
 static uintmax_t parse_int(const char *str, const char *name, int base) {
@@ -145,7 +144,7 @@ void config_init(int argc, char **argv) {
       } break;
       case CMD_TIMEOUT_NUM: {
         if (optarg != NULL) {
-            config.timeout = parse_int(optarg, CMD_TIMEOUT, 10);
+          config.timeout = parse_int(optarg, CMD_TIMEOUT, 10);
         }
       } break;
       default:
@@ -168,10 +167,10 @@ void config_init(int argc, char **argv) {
 
 void config_print() {
   LOG("\n----- Config -----");
-  LOG("TX port:          %" PRIu16, config.port);
-  LOG("Num of cores:     %" PRIu16, config.num_cores);
-  LOG("Flows per core:   %" PRIu16 "", config.flows_per_core);
-  LOG("Packet size:      %" PRIu64 " bytes", config.pkt_size);
-  LOG("Timeout:          %" PRIu32 " seconds", config.timeout);
+  LOG("TX port:          " << config.port);
+  LOG("Num of cores:     " << config.num_cores);
+  LOG("Flows per core:   " << config.flows_per_core);
+  LOG("Packet size:      " << config.pkt_size);
+  LOG("Timeout:          " << config.timeout);
   LOG("------------------\n");
 }

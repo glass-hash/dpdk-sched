@@ -1,5 +1,3 @@
-#include "pktgen.h"
-
 #include <pcap.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
@@ -16,6 +14,7 @@
 #include <time.h>
 
 #include <chrono>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -23,11 +22,11 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <fstream>
 
 #include "clock.h"
 #include "flows.h"
 #include "log.h"
+#include "pktgen.h"
 
 volatile bool quit;
 struct config_t config;
@@ -44,10 +43,9 @@ struct worker_config_t {
   struct rte_mempool* pool;
   uint16_t queue_id;
   uint16_t flows_per_core;
-  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id, uint16_t _flows_per_core)
-      : pool(_pool),
-        queue_id(_queue_id),
-        flows_per_core(_flows_per_core) {}
+  worker_config_t(struct rte_mempool* _pool, uint16_t _queue_id,
+                  uint16_t _flows_per_core)
+      : pool(_pool), queue_id(_queue_id), flows_per_core(_flows_per_core) {}
 };
 
 static inline int port_init(uint16_t port) {
@@ -60,8 +58,9 @@ static inline int port_init(uint16_t port) {
 
   retval = rte_eth_dev_is_valid_port(port);
   if (retval != 1) {
-      std::cerr << "Port " << port << " is not valid retval = " << retval << std::endl;
-      return -1;
+    std::cerr << "Port " << port << " is not valid retval = " << retval
+              << std::endl;
+    return -1;
   }
 
   retval = rte_eth_dev_info_get(port, &dev_info);
@@ -83,8 +82,8 @@ static inline int port_init(uint16_t port) {
   // No Rx queues
   retval = rte_eth_dev_configure(port, 0, config.num_cores, &port_conf);
   if (retval != 0) {
-      std::cerr << "rte_eth_dev_configure failed " << retval << std::endl;
-      return retval;
+    std::cerr << "rte_eth_dev_configure failed " << retval << std::endl;
+    return retval;
   }
 
   txconf = dev_info.default_txconf;
@@ -144,58 +143,60 @@ struct rte_mempool* create_mbuf_pool(unsigned lcore_id) {
 }
 
 static int tx_worker_main(void* arg) {
-    worker_config_t* worker_config = (worker_config_t*)arg;
-    const uint16_t port_id = config.port;
-    const uint16_t queue_id = worker_config->queue_id;
-    const uint16_t flows_per_core = worker_config->flows_per_core;
+  worker_config_t* worker_config = (worker_config_t*)arg;
+  const uint16_t port_id = config.port;
+  const uint16_t queue_id = worker_config->queue_id;
+  const uint16_t flows_per_core = worker_config->flows_per_core;
 
-    // Pre-allocate burst of mbufs
-    struct rte_mbuf* tx_burst[BURST_SIZE];
+  // Pre-allocate burst of mbufs
+  struct rte_mbuf* tx_burst[BURST_SIZE];
+  for (int i = 0; i < BURST_SIZE; i++) {
+    // Allocate new mbuf for each packet
+    tx_burst[i] = rte_pktmbuf_alloc(worker_config->pool);
+    if (unlikely(tx_burst[i] == nullptr)) {
+      rte_exit(EXIT_FAILURE, "Failed to allocate mbuf\n");
+    }
+  }
+
+  uint32_t flow_idx_start = queue_id * flows_per_core;
+  uint32_t flow_idx_end = flow_idx_start + flows_per_core;
+  uint32_t flow_idx = flow_idx_start;
+
+  while (likely(!quit)) {
+    const flow_t& current_flow = flows[flow_idx];
     for (int i = 0; i < BURST_SIZE; i++) {
-        // Allocate new mbuf for each packet
-        tx_burst[i] = rte_pktmbuf_alloc(worker_config->pool);
-        if (unlikely(tx_burst[i] == nullptr)) {
-            rte_exit(EXIT_FAILURE, "Failed to allocate mbuf\n");
-        }
+      // Append and copy data
+      rte_pktmbuf_reset(tx_burst[i]);
+      uint8_t* packet =
+          (uint8_t*)rte_pktmbuf_append(tx_burst[i], current_flow.size);
+      if (packet == NULL) {
+        rte_exit(EXIT_FAILURE, "Failed to append mbuf\n");
+      }
+      rte_memcpy(packet, current_flow.pkt_buf, current_flow.size);
     }
 
-    uint32_t flow_idx_start = queue_id * flows_per_core;
-    uint32_t flow_idx_end = flow_idx_start + flows_per_core;
-    uint32_t flow_idx = flow_idx_start;
+    // Send burst
+    rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
 
-    while (likely(!quit)) {
-        const flow_t& current_flow = flows[flow_idx];
-        for (int i = 0; i < BURST_SIZE; i++) {
-            // Append and copy data
-            rte_pktmbuf_reset(tx_burst[i]);
-            uint8_t* packet = (uint8_t*)rte_pktmbuf_append(tx_burst[i], current_flow.size);
-            if (packet == NULL) {
-                rte_exit(EXIT_FAILURE, "Failed to append mbuf\n");
-            }
-            rte_memcpy(packet, current_flow.pkt_buf, current_flow.size);
-        }
-
-        // Send burst
-        rte_eth_tx_burst(port_id, queue_id, tx_burst, BURST_SIZE);
-
-        flow_idx++;
-        if(flow_idx == flow_idx_end) {
-            flow_idx = flow_idx_start;
-        }
+    flow_idx++;
+    if (flow_idx == flow_idx_end) {
+      flow_idx = flow_idx_start;
     }
+  }
 
-    for (uint16_t i = 0; i < BURST_SIZE; i++) {
-        rte_pktmbuf_free(tx_burst[i]);
-    }
+  for (uint16_t i = 0; i < BURST_SIZE; i++) {
+    rte_pktmbuf_free(tx_burst[i]);
+  }
 
-    return 0;
+  return 0;
 }
 
 static void wait_port_up(uint16_t port_id) {
   struct rte_eth_link link;
   link.link_status = ETH_LINK_DOWN;
 
-  LOG("Waiting for port %u...", port_id);
+  // LOG("Waiting for port %u...", port_id);
+  LOG("Waiting for port " << port_id);
 
   while (link.link_status == ETH_LINK_DOWN) {
     int retval = rte_eth_link_get(port_id, &link);
@@ -215,15 +216,14 @@ static void get_port_stats(uint16_t port_id) {
   rte_eth_stats_get(port_id, &stats);
 
   LOG("==== Statistics ====");
-  LOG("Port %" PRIu8, port_id);
-  LOG("    ipackets: %" PRIu64, stats.ipackets);
-  LOG("    opackets: %" PRIu64, stats.opackets);
-  LOG("    ibytes: %" PRIu64, stats.ibytes);
-  LOG("    obytes: %" PRIu64, stats.obytes);
-  LOG("    imissed: %" PRIu64, stats.imissed);
-  LOG("    oerrors: %" PRIu64, stats.oerrors);
-  LOG("    rx_nombuf: %" PRIu64, stats.rx_nombuf);
-  LOG();
+  LOG("Port " << port_id);
+  LOG("    ipackets: " << stats.ipackets);
+  LOG("    opackets: " << stats.opackets);
+  LOG("    ibytes: " << stats.ibytes);
+  LOG("    obytes: " << stats.obytes);
+  LOG("    imissed: " << stats.imissed);
+  LOG("    oerrors: " << stats.oerrors);
+  LOG("    rx_nombuf: " << stats.rx_nombuf);
   std::ofstream statsFile("schedTxStats.csv");
   statsFile << stats.obytes << "," << stats.opackets << std::endl;
   statsFile.close();
@@ -232,19 +232,18 @@ static void get_port_stats(uint16_t port_id) {
   int num_xstats = rte_eth_xstats_get(port_id, NULL, 0);
   struct rte_eth_xstat xstats[max_num_stats];
   if (rte_eth_xstats_get(port_id, xstats, num_xstats) != num_xstats) {
-    WARNING("Cannot get xstats (port %u)", port_id);
+    WARNING("Cannot get xstats for port " << port_id);
     return;
   }
   struct rte_eth_xstat_name xstats_names[max_num_stats];
   if (rte_eth_xstats_get_names(port_id, xstats_names, num_xstats) !=
       num_xstats) {
-    WARNING("Cannot get xstats (port %u)", port_id);
+    WARNING("Cannot get xstats for port " << port_id);
     return;
   }
   for (int i = 0; i < num_xstats; ++i) {
-    LOG("%s: %" PRIu64, xstats_names[i].name, xstats[i].value);
+    LOG(xstats_names[i].name << " " << xstats[i].value);
   }
-  LOG();
 }
 
 int main(int argc, char* argv[]) {
@@ -299,10 +298,10 @@ int main(int argc, char* argv[]) {
   wait_port_up(config.port);
 
   uint64_t cur_time = 0;
-  while(!quit) {
+  while (!quit) {
     sleep_ms(1000);
     cur_time++;
-    if(cur_time == config.timeout) {
+    if (cur_time == config.timeout) {
       quit = true;
     }
   }

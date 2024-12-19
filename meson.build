@@ -12,7 +12,7 @@ dpdk_dep = dependency('libdpdk')
 
 # Source files
 sources = files(
-  'src/pktgen.cpp',
+  'src/sched.cpp',
   'src/flows.cpp',
   'src/config.cpp',
   'src/clock.cpp'

@@ -1,25 +1,13 @@
 #pragma once
 
-#include <stdio.h>
+#include <iostream>
 
-#ifdef NDEBUG
-#define LOG_DEBUG(...)
-#else
-#define LOG_DEBUG(fmt, ...)                   \
-  {                                           \
-    fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
-    fflush(stderr);                           \
-  }
-#endif
+#define LOG(line)                   \
+  do {                              \
+    std::cout << line << std::endl; \
+  } while (0);
 
-#define LOG(fmt, ...)                \
-  {                                  \
-    printf(fmt "\n", ##__VA_ARGS__); \
-    fflush(stdout);                  \
-  }
-
-#define WARNING(fmt, ...)                        \
-  {                                              \
-    printf("WARNING: " fmt "\n", ##__VA_ARGS__); \
-    fflush(stdout);                              \
-  }
+#define WARNING(line)               \
+  do {                              \
+    std::cerr << line << std::endl; \
+  } while (0);

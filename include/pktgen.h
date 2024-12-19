@@ -45,7 +45,6 @@ struct flow_t {
   uint16_t size;
 };
 
-
 struct config_t {
   uint32_t flows_per_core;
   bytes_t pkt_size;
